@@ -1,0 +1,159 @@
+#!/usr/bin/env python3
+"""
+Script pour rendre toutes les images du dossier courrant carrées sans les déformer.
+Ajoute de l'espace (padding) en haut/bas ou gauche/droite selon les besoins.
+Les images restent centrées dans le carré final.
+"""
+
+import os
+import glob
+from PIL import Image, ImageOps, ImageStat
+
+def make_image_square(image_path, output_path=None, background_color=(255, 255, 255)):
+    """
+    Rend une image carrée en ajoutant du padding sans déformation.
+    
+    Args:
+        image_path (str): Chemin vers l'image source
+        output_path (str): Chemin de sortie (optionnel, écrase l'original si None)
+        background_color (tuple): Couleur de fond RGB pour le padding (blanc par défaut)
+    
+    Returns:
+        bool: True si succès, False sinon
+    """
+    try:
+        # Ouvrir l'image
+        with Image.open(image_path) as img:
+            # Convertir en RGB si nécessaire (pour gérer les images avec transparence)
+            if img.mode in ('RGBA', 'LA', 'P'):
+                # Créer un fond blanc et coller l'image dessus
+                background = Image.new('RGB', img.size, background_color)
+                if img.mode == 'P':
+                    img = img.convert('RGBA')
+                background.paste(img, mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None)
+                img = background
+            elif img.mode != 'RGB':
+                img = img.convert('RGB')
+            
+            # Obtenir les dimensions actuelles
+            width, height = img.size
+            
+            # Calculer la taille du carré (la plus grande dimension)
+            max_size = max(width, height)
+            
+            # Si l'image est déjà carrée, pas besoin de modification
+            if width == height:
+                if output_path:
+                    img.save(output_path, 'JPEG', quality=95)
+                else:
+                    img.save(image_path, 'JPEG', quality=95)
+                return True
+            
+            # Créer une nouvelle image carrée avec le fond blanc
+            square_img = Image.new('RGB', (max_size, max_size), background_color)
+            
+            # Calculer la position pour centrer l'image originale
+            paste_x = (max_size - width) // 2
+            paste_y = (max_size - height) // 2
+            
+            # Coller l'image originale au centre
+            square_img.paste(img, (paste_x, paste_y))
+            
+            # Sauvegarder
+            output_file = output_path if output_path else image_path
+            square_img.save(output_file, 'JPEG', quality=95)
+            
+            print(f"✓ Traité: {os.path.basename(image_path)} ({width}x{height} → {max_size}x{max_size})")
+            return True
+            
+    except Exception as e:
+        print(f"✗ Erreur avec {os.path.basename(image_path)}: {e}")
+        return False
+
+def process_folder(folder_path=".", image_extensions=None, create_backup=False):
+    """
+    Traite toutes les images d'un dossier.
+    
+    Args:
+        folder_path (str): Chemin du dossier à traiter
+        image_extensions (list): Extensions d'images à traiter
+        create_backup (bool): Créer une sauvegarde avant modification
+    """
+    if image_extensions is None:
+        image_extensions = ['*.jpg', '*.jpeg', '*.png', '*.bmp', '*.tiff', '*.webp']
+    
+    # Obtenir la liste des fichiers image
+    image_files = []
+    for extension in image_extensions:
+        pattern = os.path.join(folder_path, extension)
+        image_files.extend(glob.glob(pattern, recursive=False))
+        # Aussi chercher en majuscules
+        pattern_upper = os.path.join(folder_path, extension.upper())
+        image_files.extend(glob.glob(pattern_upper, recursive=False))
+    
+    # Supprimer les doublons
+    image_files = list(set(image_files))
+    image_files.sort()
+    
+    if not image_files:
+        print("Aucune image trouvée dans le dossier.")
+        return
+    
+    print(f"Trouvé {len(image_files)} image(s) à traiter...")
+    print("-" * 50)
+    
+    # Créer un dossier de sauvegarde si demandé
+    if create_backup:
+        backup_folder = os.path.join(folder_path, "backup_original")
+        os.makedirs(backup_folder, exist_ok=True)
+        print(f"Sauvegarde créée dans: {backup_folder}")
+    
+    # Traiter chaque image
+    success_count = 0
+    for image_file in image_files:
+        # Créer une sauvegarde si demandé
+        if create_backup:
+            backup_path = os.path.join(backup_folder, os.path.basename(image_file))
+            try:
+                with Image.open(image_file) as img:
+                    img.save(backup_path, quality=95)
+            except Exception as e:
+                print(f"⚠ Impossible de sauvegarder {os.path.basename(image_file)}: {e}")
+        
+        # Traiter l'image
+        if make_image_square(image_file):
+            success_count += 1
+    
+    print("-" * 50)
+    print(f"Traitement terminé: {success_count}/{len(image_files)} images traitées avec succès.")
+    
+    if create_backup:
+        print(f"Les images originales ont été sauvegardées dans '{backup_folder}'")
+
+def main():
+    """Fonction principale du script."""
+    print("=" * 60)
+    print("SCRIPT DE TRANSFORMATION D'IMAGES EN CARRÉ")
+    print("=" * 60)
+    print("Ce script va transformer toutes les images du dossier courant")
+    print("en images carrées en ajoutant du padding blanc sans déformation.")
+    print()
+    
+    # Demander confirmation
+    response = input("Voulez-vous créer une sauvegarde des originaux? (o/N): ").strip().lower()
+    create_backup = response in ['o', 'oui', 'y', 'yes']
+    
+    print()
+    response = input("Continuer le traitement? (O/n): ").strip().lower()
+    if response in ['n', 'non', 'no']:
+        print("Traitement annulé.")
+        return
+    
+    print()
+    
+    # Traiter le dossier courant
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    process_folder(current_dir, create_backup=create_backup)
+
+if __name__ == "__main__":
+    main()
