@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-Script pour rendre toutes les images du dossier courrant carrées sans les déformer.
-Remplace les fonds blancs existants par FFFFDD, ajoute du padding de couleur FFFFDD 
-autour de chaque image, puis ajoute de l'espace supplémentaire en haut/bas ou gauche/droite 
-selon les besoins pour créer un carré parfait.
-Les images restent centrées et sont redimensionnées à 256x256 pixels.
+Script pour traiter les images ET mettre à jour le fichier CSV correspondant.
+Ajoute un timestamp aux noms de fichiers pour forcer le rechargement du cache Glide.
 """
 
 import os
 import glob
+import csv
+import time
 from PIL import Image, ImageOps, ImageStat
 import numpy as np
+import shutil
 
 def replace_white_background(image, target_color=(255, 255, 221), tolerance=10):
     """
@@ -32,7 +32,6 @@ def replace_white_background(image, target_color=(255, 255, 221), tolerance=10):
         img_array = np.array(image)
         
         # Créer un masque pour les pixels blancs ou quasi-blancs
-        # Détecte les pixels où R, G, B sont tous proches de 255
         white_mask = (
             (img_array[:, :, 0] >= 255 - tolerance) &  # Rouge proche de 255
             (img_array[:, :, 1] >= 255 - tolerance) &  # Vert proche de 255
@@ -52,12 +51,6 @@ def replace_white_background(image, target_color=(255, 255, 221), tolerance=10):
 def add_cache_buster_pixels(image):
     """
     Ajoute quelques pixels quasi-invisibles pour forcer Glide à invalider son cache.
-    
-    Args:
-        image (PIL.Image): Image à traiter
-    
-    Returns:
-        PIL.Image: Image avec pixels cache-buster
     """
     try:
         if image.mode != 'RGB':
@@ -104,14 +97,6 @@ def add_cache_buster_pixels(image):
 def add_border_pattern(image, border_width=2, pattern_color=(220, 220, 190)):
     """
     Ajoute une bordure subtile avec motif pour éviter la suppression par Glide.
-    
-    Args:
-        image (PIL.Image): Image à traiter
-        border_width (int): Largeur de la bordure en pixels
-        pattern_color (tuple): Couleur de la bordure (légèrement différente du fond)
-    
-    Returns:
-        PIL.Image: Image avec bordure anti-suppression
     """
     try:
         if image.mode != 'RGB':
@@ -138,21 +123,9 @@ def add_border_pattern(image, border_width=2, pattern_color=(220, 220, 190)):
         print(f"Erreur lors de l'ajout de la bordure: {e}")
         return image
 
-def make_image_square(image_path, output_path=None, background_color=(255, 255, 221), padding=20, final_size=256, add_border=True, add_cache_buster=True):
+def make_image_square(image_path, output_path, background_color=(255, 255, 221), padding=20, final_size=256, add_border=True, add_cache_buster=True):
     """
     Rend une image carrée en ajoutant du padding sans déformation, puis la redimensionne.
-    
-    Args:
-        image_path (str): Chemin vers l'image source
-        output_path (str): Chemin de sortie (optionnel, écrase l'original si None)
-        background_color (tuple): Couleur de fond RGB pour le padding (FFFFDD par défaut)
-        padding (int): Nombre de pixels de padding à ajouter autour de l'image
-        final_size (int): Taille finale en pixels (carré final_size x final_size)
-        add_border (bool): Ajouter une bordure anti-suppression pour Glide
-        add_cache_buster (bool): Ajouter des pixels invisibles pour forcer le rechargement du cache
-    
-    Returns:
-        bool: True si succès, False sinon
     """
     try:
         # Ouvrir l'image
@@ -188,9 +161,6 @@ def make_image_square(image_path, output_path=None, background_color=(255, 255, 
             img = padded_img
             width, height = padded_width, padded_height
             
-            # Obtenir les dimensions actuelles (après padding)
-            # width, height = img.size
-            
             # Calculer la taille du carré (la plus grande dimension)
             max_size = max(width, height)
             
@@ -221,149 +191,197 @@ def make_image_square(image_path, output_path=None, background_color=(255, 255, 
                 square_img = add_cache_buster_pixels(square_img)
             
             # Sauvegarder
-            output_file = output_path if output_path else image_path
-            square_img.save(output_file, 'JPEG', quality=95)
+            square_img.save(output_path, 'JPEG', quality=95)
             
-            original_size = f"{width - 2*padding}x{height - 2*padding}"
-            border_msg = ", bordure anti-Glide" if add_border else ""
-            cache_msg = ", cache-buster" if add_cache_buster else ""
-            print(f"✓ Traité: {os.path.basename(image_path)} ({original_size} → {final_size}x{final_size}, padding: {padding}px, fond blanc→FFFFDD{border_msg}{cache_msg})")
             return True
             
     except Exception as e:
         print(f"✗ Erreur avec {os.path.basename(image_path)}: {e}")
         return False
 
-def process_folder(folder_path=".", image_extensions=None, create_backup=False, padding=20, final_size=256, add_border=True, add_cache_buster=True):
+def generate_new_filename(original_filename):
     """
-    Traite toutes les images d'un dossier.
+    Génère un nouveau nom de fichier avec timestamp pour éviter le cache.
     
     Args:
-        folder_path (str): Chemin du dossier à traiter
-        image_extensions (list): Extensions d'images à traiter
-        create_backup (bool): Créer une sauvegarde avant modification
-        padding (int): Nombre de pixels de padding à ajouter autour de chaque image
-        final_size (int): Taille finale en pixels (carré final_size x final_size)
-        add_border (bool): Ajouter une bordure anti-suppression pour Glide
-        add_cache_buster (bool): Ajouter des pixels invisibles pour forcer le rechargement du cache
+        original_filename (str): Nom de fichier original
+    
+    Returns:
+        str: Nouveau nom avec timestamp
     """
-    if image_extensions is None:
-        image_extensions = ['*.jpg', '*.jpeg', '*.png', '*.bmp', '*.tiff', '*.webp']
+    # Extraire le nom et l'extension
+    name, ext = os.path.splitext(original_filename)
     
-    # Obtenir la liste des fichiers image
-    image_files = []
-    for extension in image_extensions:
-        pattern = os.path.join(folder_path, extension)
-        image_files.extend(glob.glob(pattern, recursive=False))
-        # Aussi chercher en majuscules
-        pattern_upper = os.path.join(folder_path, extension.upper())
-        image_files.extend(glob.glob(pattern_upper, recursive=False))
+    # Ajouter un timestamp
+    timestamp = int(time.time())
     
-    # Supprimer les doublons
-    image_files = list(set(image_files))
-    image_files.sort()
+    # Nouveau nom: image-001-000_1642345678.jpg
+    new_filename = f"{name}_{timestamp}{ext}"
     
-    if not image_files:
-        print("Aucune image trouvée dans le dossier.")
-        return
+    return new_filename
+
+def update_csv_file(csv_path, filename_mapping):
+    """
+    Met à jour le fichier CSV avec les nouveaux noms de fichiers.
     
-    print(f"Trouvé {len(image_files)} image(s) à traiter...")
-    print("-" * 50)
-    
-    # Créer un dossier de sauvegarde si demandé
-    if create_backup:
-        backup_folder = os.path.join(folder_path, "backup_original")
-        os.makedirs(backup_folder, exist_ok=True)
-        print(f"Sauvegarde créée dans: {backup_folder}")
-    
-    # Traiter chaque image
-    success_count = 0
-    for image_file in image_files:
-        # Créer une sauvegarde si demandé
-        if create_backup:
-            backup_path = os.path.join(backup_folder, os.path.basename(image_file))
-            try:
-                with Image.open(image_file) as img:
-                    img.save(backup_path, quality=95)
-            except Exception as e:
-                print(f"⚠ Impossible de sauvegarder {os.path.basename(image_file)}: {e}")
+    Args:
+        csv_path (str): Chemin vers le fichier CSV
+        filename_mapping (dict): Mapping ancien_nom -> nouveau_nom
+    """
+    try:
+        # Lire le fichier CSV
+        with open(csv_path, 'r', encoding='utf-8') as file:
+            reader = csv.reader(file)
+            rows = list(reader)
         
-        # Traiter l'image
-        if make_image_square(image_file, padding=padding, final_size=final_size, add_border=add_border, add_cache_buster=add_cache_buster):
-            success_count += 1
-    
-    print("-" * 50)
-    print(f"Traitement terminé: {success_count}/{len(image_files)} images traitées avec succès.")
-    
-    if create_backup:
-        print(f"Les images originales ont été sauvegardées dans '{backup_folder}'")
+        # Identifier la colonne contenant les URLs (probablement "BrickLink URL")
+        header = rows[0] if rows else []
+        url_column_index = None
+        
+        for i, column_name in enumerate(header):
+            if 'url' in column_name.lower() or 'bricklink' in column_name.lower():
+                url_column_index = i
+                break
+        
+        if url_column_index is None:
+            print("⚠ Impossible de trouver la colonne URL dans le CSV")
+            return False
+        
+        print(f"✓ Colonne URL trouvée: {header[url_column_index]} (index {url_column_index})")
+        
+        # Mettre à jour les URLs
+        updates_count = 0
+        for row in rows[1:]:  # Skip header
+            if len(row) > url_column_index:
+                old_url = row[url_column_index]
+                
+                # Extraire le nom de fichier de l'URL
+                if 'images_giant_booster/' in old_url:
+                    old_filename = old_url.split('images_giant_booster/')[-1]
+                    
+                    if old_filename in filename_mapping:
+                        new_filename = filename_mapping[old_filename]
+                        new_url = old_url.replace(old_filename, new_filename)
+                        row[url_column_index] = new_url
+                        updates_count += 1
+                        print(f"  📝 {old_filename} → {new_filename}")
+        
+        # Sauvegarder le CSV mis à jour
+        backup_path = csv_path.replace('.csv', '_backup.csv')
+        shutil.copy2(csv_path, backup_path)
+        print(f"✓ Sauvegarde du CSV original: {os.path.basename(backup_path)}")
+        
+        with open(csv_path, 'w', encoding='utf-8', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerows(rows)
+        
+        print(f"✓ CSV mis à jour: {updates_count} URLs modifiées")
+        return True
+        
+    except Exception as e:
+        print(f"✗ Erreur lors de la mise à jour du CSV: {e}")
+        return False
 
 def main():
     """Fonction principale du script."""
-    print("=" * 60)
-    print("SCRIPT DE TRANSFORMATION D'IMAGES EN CARRÉ")
-    print("=" * 60)
-    print("Ce script va transformer toutes les images du dossier courant")
-    print("en images carrées de 256x256 pixels avec du padding FFFFDD sans déformation.")
-    print("Un padding de couleur FFFFDD sera ajouté autour de chaque image avant redimensionnement.")
-    print("Les fonds blancs existants seront également remplacés par FFFFDD.")
-    print("Une bordure anti-suppression sera ajoutée pour éviter les optimisations de Glide.")
-    print("Des pixels cache-buster seront ajoutés pour forcer le rechargement par Glide.")
+    print("=" * 70)
+    print("SCRIPT DE TRAITEMENT D'IMAGES ET MISE À JOUR CSV")
+    print("=" * 70)
+    print("Ce script va:")
+    print("1. Traiter toutes les images (carrées 256x256, fond FFFFDD)")
+    print("2. Les renommer avec un timestamp pour éviter le cache Glide")
+    print("3. Mettre à jour les URLs dans le fichier CSV correspondant")
     print()
     
-    # Demander si on veut ajouter la bordure anti-Glide
-    response = input("Ajouter une bordure anti-suppression Glide? (O/n): ").strip().lower()
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # Vérifier la présence du CSV
+    csv_path = os.path.join(current_dir, 'lego_parts2.csv')
+    if not os.path.exists(csv_path):
+        print(f"✗ Fichier CSV non trouvé: {csv_path}")
+        return
+    
+    print(f"✓ Fichier CSV trouvé: {os.path.basename(csv_path)}")
+    
+    # Paramètres
+    response = input("Taille du padding en pixels (défaut: 20): ").strip()
+    padding = int(response) if response else 20
+    
+    response = input("Ajouter bordure anti-Glide? (O/n): ").strip().lower()
     add_border = response not in ['n', 'non', 'no']
     
-    # Demander si on veut ajouter les pixels cache-buster
-    response = input("Ajouter des pixels cache-buster pour forcer le rechargement? (O/n): ").strip().lower()
+    response = input("Ajouter cache-buster? (O/n): ").strip().lower()
     add_cache_buster = response not in ['n', 'non', 'no']
     
-    if add_border:
-        print("✓ Bordure anti-Glide activée")
-    else:
-        print("✗ Bordure anti-Glide désactivée")
-        
-    if add_cache_buster:
-        print("✓ Cache-buster activé")
-    else:
-        print("✗ Cache-buster désactivé")
-    print()
+    print(f"\n✓ Padding: {padding}px")
+    print(f"✓ Bordure anti-Glide: {'Activée' if add_border else 'Désactivée'}")
+    print(f"✓ Cache-buster: {'Activé' if add_cache_buster else 'Désactivé'}")
     
-    # Demander la taille du padding
-    while True:
-        try:
-            padding_input = input("Taille du padding en pixels (défaut: 20): ").strip()
-            if padding_input == "":
-                padding = 20
-                break
-            padding = int(padding_input)
-            if padding >= 0:
-                break
-            else:
-                print("⚠ Le padding doit être un nombre positif ou zéro.")
-        except ValueError:
-            print("⚠ Veuillez entrer un nombre valide.")
-    
-    print(f"Padding sélectionné: {padding} pixels")
-    print("Taille finale: 256x256 pixels")
-    print()
-    
-    # Demander confirmation
-    response = input("Voulez-vous créer une sauvegarde des originaux? (o/N): ").strip().lower()
-    create_backup = response in ['o', 'oui', 'y', 'yes']
-    
-    print()
-    response = input("Continuer le traitement? (O/n): ").strip().lower()
+    response = input("\nContinuer le traitement? (O/n): ").strip().lower()
     if response in ['n', 'non', 'no']:
         print("Traitement annulé.")
         return
     
-    print()
+    print("\n" + "-" * 70)
     
-    # Traiter le dossier courant
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    process_folder(current_dir, create_backup=create_backup, padding=padding, final_size=256, add_border=add_border, add_cache_buster=add_cache_buster)
+    # Obtenir la liste des fichiers image
+    image_extensions = ['*.jpg', '*.jpeg', '*.png', '*.bmp', '*.tiff', '*.webp']
+    image_files = []
+    for extension in image_extensions:
+        pattern = os.path.join(current_dir, extension)
+        image_files.extend(glob.glob(pattern, recursive=False))
+        # Aussi chercher en majuscules
+        pattern_upper = os.path.join(current_dir, extension.upper())
+        image_files.extend(glob.glob(pattern_upper, recursive=False))
+    
+    # Supprimer les doublons et trier
+    image_files = list(set(image_files))
+    image_files.sort()
+    
+    if not image_files:
+        print("✗ Aucune image trouvée dans le dossier.")
+        return
+    
+    print(f"✓ Trouvé {len(image_files)} image(s) à traiter")
+    
+    # Mapping des noms de fichiers
+    filename_mapping = {}
+    
+    # Traiter chaque image
+    success_count = 0
+    for image_file in image_files:
+        old_filename = os.path.basename(image_file)
+        new_filename = generate_new_filename(old_filename)
+        new_filepath = os.path.join(current_dir, new_filename)
+        
+        print(f"\n📷 Traitement: {old_filename}")
+        
+        # Traiter l'image
+        if make_image_square(image_file, new_filepath, padding=padding, add_border=add_border, add_cache_buster=add_cache_buster):
+            # Supprimer l'ancien fichier
+            os.remove(image_file)
+            
+            # Ajouter au mapping
+            filename_mapping[old_filename] = new_filename
+            
+            print(f"✓ Renommé: {old_filename} → {new_filename}")
+            success_count += 1
+        else:
+            print(f"✗ Échec du traitement: {old_filename}")
+    
+    print("\n" + "-" * 70)
+    print(f"✓ Images traitées: {success_count}/{len(image_files)}")
+    
+    if filename_mapping:
+        print(f"📝 Mise à jour du CSV...")
+        update_csv_file(csv_path, filename_mapping)
+    
+    print("\n" + "=" * 70)
+    print("🎉 TRAITEMENT TERMINÉ!")
+    print("✓ Images transformées et renommées")
+    print("✓ CSV mis à jour avec les nouveaux noms")
+    print("✓ Cache Glide forcé à se recharger")
+    print("=" * 70)
 
 if __name__ == "__main__":
     main()
