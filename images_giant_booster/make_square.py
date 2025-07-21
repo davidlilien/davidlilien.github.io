@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 Script pour rendre toutes les images du dossier courrant carrées sans les déformer.
-Ajoute de l'espace (padding) en haut/bas ou gauche/droite selon les besoins.
+Ajoute du padding blanc autour de chaque image, puis ajoute de l'espace supplémentaire
+en haut/bas ou gauche/droite selon les besoins pour créer un carré parfait.
 Les images restent centrées dans le carré final.
 """
 
@@ -9,7 +10,7 @@ import os
 import glob
 from PIL import Image, ImageOps, ImageStat
 
-def make_image_square(image_path, output_path=None, background_color=(255, 255, 255)):
+def make_image_square(image_path, output_path=None, background_color=(255, 255, 255), padding=20):
     """
     Rend une image carrée en ajoutant du padding sans déformation.
     
@@ -17,6 +18,7 @@ def make_image_square(image_path, output_path=None, background_color=(255, 255, 
         image_path (str): Chemin vers l'image source
         output_path (str): Chemin de sortie (optionnel, écrase l'original si None)
         background_color (tuple): Couleur de fond RGB pour le padding (blanc par défaut)
+        padding (int): Nombre de pixels de padding à ajouter autour de l'image
     
     Returns:
         bool: True si succès, False sinon
@@ -35,8 +37,25 @@ def make_image_square(image_path, output_path=None, background_color=(255, 255, 
             elif img.mode != 'RGB':
                 img = img.convert('RGB')
             
-            # Obtenir les dimensions actuelles
+            # Ajouter du padding autour de l'image
             width, height = img.size
+            
+            # Créer une nouvelle image avec padding
+            padded_width = width + (2 * padding)
+            padded_height = height + (2 * padding)
+            padded_img = Image.new('RGB', (padded_width, padded_height), background_color)
+            
+            # Coller l'image originale au centre de l'image avec padding
+            paste_x = padding
+            paste_y = padding
+            padded_img.paste(img, (paste_x, paste_y))
+            
+            # Utiliser l'image avec padding pour la suite
+            img = padded_img
+            width, height = padded_width, padded_height
+            
+            # Obtenir les dimensions actuelles (après padding)
+            # width, height = img.size
             
             # Calculer la taille du carré (la plus grande dimension)
             max_size = max(width, height)
@@ -63,14 +82,16 @@ def make_image_square(image_path, output_path=None, background_color=(255, 255, 
             output_file = output_path if output_path else image_path
             square_img.save(output_file, 'JPEG', quality=95)
             
-            print(f"✓ Traité: {os.path.basename(image_path)} ({width}x{height} → {max_size}x{max_size})")
+            original_size = f"{width - 2*padding}x{height - 2*padding}"
+            final_size = f"{max_size}x{max_size}"
+            print(f"✓ Traité: {os.path.basename(image_path)} ({original_size} → {final_size}, padding: {padding}px)")
             return True
             
     except Exception as e:
         print(f"✗ Erreur avec {os.path.basename(image_path)}: {e}")
         return False
 
-def process_folder(folder_path=".", image_extensions=None, create_backup=False):
+def process_folder(folder_path=".", image_extensions=None, create_backup=False, padding=20):
     """
     Traite toutes les images d'un dossier.
     
@@ -78,6 +99,7 @@ def process_folder(folder_path=".", image_extensions=None, create_backup=False):
         folder_path (str): Chemin du dossier à traiter
         image_extensions (list): Extensions d'images à traiter
         create_backup (bool): Créer une sauvegarde avant modification
+        padding (int): Nombre de pixels de padding à ajouter autour de chaque image
     """
     if image_extensions is None:
         image_extensions = ['*.jpg', '*.jpeg', '*.png', '*.bmp', '*.tiff', '*.webp']
@@ -121,7 +143,7 @@ def process_folder(folder_path=".", image_extensions=None, create_backup=False):
                 print(f"⚠ Impossible de sauvegarder {os.path.basename(image_file)}: {e}")
         
         # Traiter l'image
-        if make_image_square(image_file):
+        if make_image_square(image_file, padding=padding):
             success_count += 1
     
     print("-" * 50)
@@ -137,6 +159,25 @@ def main():
     print("=" * 60)
     print("Ce script va transformer toutes les images du dossier courant")
     print("en images carrées en ajoutant du padding blanc sans déformation.")
+    print("Un padding blanc sera ajouté autour de chaque image.")
+    print()
+    
+    # Demander la taille du padding
+    while True:
+        try:
+            padding_input = input("Taille du padding en pixels (défaut: 20): ").strip()
+            if padding_input == "":
+                padding = 20
+                break
+            padding = int(padding_input)
+            if padding >= 0:
+                break
+            else:
+                print("⚠ Le padding doit être un nombre positif ou zéro.")
+        except ValueError:
+            print("⚠ Veuillez entrer un nombre valide.")
+    
+    print(f"Padding sélectionné: {padding} pixels")
     print()
     
     # Demander confirmation
@@ -153,7 +194,7 @@ def main():
     
     # Traiter le dossier courant
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    process_folder(current_dir, create_backup=create_backup)
+    process_folder(current_dir, create_backup=create_backup, padding=padding)
 
 if __name__ == "__main__":
     main()
