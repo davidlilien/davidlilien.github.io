@@ -1,23 +1,62 @@
 #!/usr/bin/env python3
 """
 Script pour rendre toutes les images du dossier courrant carrées sans les déformer.
-Ajoute du padding blanc autour de chaque image, puis ajoute de l'espace supplémentaire
-en haut/bas ou gauche/droite selon les besoins pour créer un carré parfait.
+Remplace les fonds blancs existants par FFFFDD, ajoute du padding de couleur FFFFDD 
+autour de chaque image, puis ajoute de l'espace supplémentaire en haut/bas ou gauche/droite 
+selon les besoins pour créer un carré parfait.
 Les images restent centrées et sont redimensionnées à 256x256 pixels.
 """
 
 import os
 import glob
 from PIL import Image, ImageOps, ImageStat
+import numpy as np
 
-def make_image_square(image_path, output_path=None, background_color=(255, 255, 255), padding=20, final_size=256):
+def replace_white_background(image, target_color=(255, 255, 221), tolerance=10):
+    """
+    Remplace les fonds blancs par la couleur cible FFFFDD.
+    
+    Args:
+        image (PIL.Image): Image à traiter
+        target_color (tuple): Couleur RGB de remplacement (FFFFDD par défaut)
+        tolerance (int): Tolérance pour la détection du blanc
+    
+    Returns:
+        PIL.Image: Image avec fond blanc remplacé
+    """
+    try:
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+        
+        # Convertir en array numpy pour un traitement efficace
+        img_array = np.array(image)
+        
+        # Créer un masque pour les pixels blancs ou quasi-blancs
+        # Détecte les pixels où R, G, B sont tous proches de 255
+        white_mask = (
+            (img_array[:, :, 0] >= 255 - tolerance) &  # Rouge proche de 255
+            (img_array[:, :, 1] >= 255 - tolerance) &  # Vert proche de 255
+            (img_array[:, :, 2] >= 255 - tolerance)    # Bleu proche de 255
+        )
+        
+        # Remplacer les pixels blancs par la couleur cible
+        img_array[white_mask] = target_color
+        
+        # Reconvertir en image PIL
+        return Image.fromarray(img_array)
+        
+    except Exception as e:
+        print(f"Erreur lors du remplacement du fond blanc: {e}")
+        return image
+
+def make_image_square(image_path, output_path=None, background_color=(255, 255, 221), padding=20, final_size=256):
     """
     Rend une image carrée en ajoutant du padding sans déformation, puis la redimensionne.
     
     Args:
         image_path (str): Chemin vers l'image source
         output_path (str): Chemin de sortie (optionnel, écrase l'original si None)
-        background_color (tuple): Couleur de fond RGB pour le padding (blanc par défaut)
+        background_color (tuple): Couleur de fond RGB pour le padding (FFFFDD par défaut)
         padding (int): Nombre de pixels de padding à ajouter autour de l'image
         final_size (int): Taille finale en pixels (carré final_size x final_size)
     
@@ -29,7 +68,7 @@ def make_image_square(image_path, output_path=None, background_color=(255, 255, 
         with Image.open(image_path) as img:
             # Convertir en RGB si nécessaire (pour gérer les images avec transparence)
             if img.mode in ('RGBA', 'LA', 'P'):
-                # Créer un fond blanc et coller l'image dessus
+                # Créer un fond FFFFDD et coller l'image dessus
                 background = Image.new('RGB', img.size, background_color)
                 if img.mode == 'P':
                     img = img.convert('RGBA')
@@ -38,10 +77,13 @@ def make_image_square(image_path, output_path=None, background_color=(255, 255, 
             elif img.mode != 'RGB':
                 img = img.convert('RGB')
             
+            # Remplacer les fonds blancs existants par FFFFDD
+            img = replace_white_background(img, background_color)
+            
             # Ajouter du padding autour de l'image
             width, height = img.size
             
-            # Créer une nouvelle image avec padding
+            # Créer une nouvelle image avec padding FFFFDD
             padded_width = width + (2 * padding)
             padded_height = height + (2 * padding)
             padded_img = Image.new('RGB', (padded_width, padded_height), background_color)
@@ -65,7 +107,7 @@ def make_image_square(image_path, output_path=None, background_color=(255, 255, 
             if width == height:
                 square_img = img
             else:
-                # Créer une nouvelle image carrée avec le fond blanc
+                # Créer une nouvelle image carrée avec le fond FFFFDD
                 square_img = Image.new('RGB', (max_size, max_size), background_color)
                 
                 # Calculer la position pour centrer l'image originale
@@ -84,7 +126,7 @@ def make_image_square(image_path, output_path=None, background_color=(255, 255, 
             square_img.save(output_file, 'JPEG', quality=95)
             
             original_size = f"{width - 2*padding}x{height - 2*padding}"
-            print(f"✓ Traité: {os.path.basename(image_path)} ({original_size} → {final_size}x{final_size}, padding: {padding}px)")
+            print(f"✓ Traité: {os.path.basename(image_path)} ({original_size} → {final_size}x{final_size}, padding: {padding}px, fond blanc→FFFFDD)")
             return True
             
     except Exception as e:
@@ -159,8 +201,9 @@ def main():
     print("SCRIPT DE TRANSFORMATION D'IMAGES EN CARRÉ")
     print("=" * 60)
     print("Ce script va transformer toutes les images du dossier courant")
-    print("en images carrées de 256x256 pixels avec du padding blanc sans déformation.")
-    print("Un padding blanc sera ajouté autour de chaque image avant redimensionnement.")
+    print("en images carrées de 256x256 pixels avec du padding FFFFDD sans déformation.")
+    print("Un padding de couleur FFFFDD sera ajouté autour de chaque image avant redimensionnement.")
+    print("Les fonds blancs existants seront également remplacés par FFFFDD.")
     print()
     
     # Demander la taille du padding
