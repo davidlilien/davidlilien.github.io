@@ -49,7 +49,44 @@ def replace_white_background(image, target_color=(255, 255, 221), tolerance=10):
         print(f"Erreur lors du remplacement du fond blanc: {e}")
         return image
 
-def make_image_square(image_path, output_path=None, background_color=(255, 255, 221), padding=20, final_size=256):
+def add_border_pattern(image, border_width=2, pattern_color=(220, 220, 190)):
+    """
+    Ajoute une bordure subtile avec motif pour éviter la suppression par Glide.
+    
+    Args:
+        image (PIL.Image): Image à traiter
+        border_width (int): Largeur de la bordure en pixels
+        pattern_color (tuple): Couleur de la bordure (légèrement différente du fond)
+    
+    Returns:
+        PIL.Image: Image avec bordure anti-suppression
+    """
+    try:
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+        
+        width, height = image.size
+        
+        # Convertir en array numpy
+        img_array = np.array(image)
+        
+        # Ajouter une bordure subtile sur les bords
+        # Bordure supérieure et inférieure
+        img_array[:border_width, :] = pattern_color
+        img_array[-border_width:, :] = pattern_color
+        
+        # Bordure gauche et droite
+        img_array[:, :border_width] = pattern_color
+        img_array[:, -border_width:] = pattern_color
+        
+        # Reconvertir en image PIL
+        return Image.fromarray(img_array)
+        
+    except Exception as e:
+        print(f"Erreur lors de l'ajout de la bordure: {e}")
+        return image
+
+def make_image_square(image_path, output_path=None, background_color=(255, 255, 221), padding=20, final_size=256, add_border=True):
     """
     Rend une image carrée en ajoutant du padding sans déformation, puis la redimensionne.
     
@@ -59,6 +96,7 @@ def make_image_square(image_path, output_path=None, background_color=(255, 255, 
         background_color (tuple): Couleur de fond RGB pour le padding (FFFFDD par défaut)
         padding (int): Nombre de pixels de padding à ajouter autour de l'image
         final_size (int): Taille finale en pixels (carré final_size x final_size)
+        add_border (bool): Ajouter une bordure anti-suppression pour Glide
     
     Returns:
         bool: True si succès, False sinon
@@ -121,19 +159,24 @@ def make_image_square(image_path, output_path=None, background_color=(255, 255, 
             if square_img.size != (final_size, final_size):
                 square_img = square_img.resize((final_size, final_size), Image.Resampling.LANCZOS)
             
+            # Ajouter une bordure anti-suppression pour Glide si demandé
+            if add_border:
+                square_img = add_border_pattern(square_img)
+            
             # Sauvegarder
             output_file = output_path if output_path else image_path
             square_img.save(output_file, 'JPEG', quality=95)
             
             original_size = f"{width - 2*padding}x{height - 2*padding}"
-            print(f"✓ Traité: {os.path.basename(image_path)} ({original_size} → {final_size}x{final_size}, padding: {padding}px, fond blanc→FFFFDD)")
+            border_msg = ", bordure anti-Glide" if add_border else ""
+            print(f"✓ Traité: {os.path.basename(image_path)} ({original_size} → {final_size}x{final_size}, padding: {padding}px, fond blanc→FFFFDD{border_msg})")
             return True
             
     except Exception as e:
         print(f"✗ Erreur avec {os.path.basename(image_path)}: {e}")
         return False
 
-def process_folder(folder_path=".", image_extensions=None, create_backup=False, padding=20, final_size=256):
+def process_folder(folder_path=".", image_extensions=None, create_backup=False, padding=20, final_size=256, add_border=True):
     """
     Traite toutes les images d'un dossier.
     
@@ -143,6 +186,7 @@ def process_folder(folder_path=".", image_extensions=None, create_backup=False, 
         create_backup (bool): Créer une sauvegarde avant modification
         padding (int): Nombre de pixels de padding à ajouter autour de chaque image
         final_size (int): Taille finale en pixels (carré final_size x final_size)
+        add_border (bool): Ajouter une bordure anti-suppression pour Glide
     """
     if image_extensions is None:
         image_extensions = ['*.jpg', '*.jpeg', '*.png', '*.bmp', '*.tiff', '*.webp']
@@ -186,7 +230,7 @@ def process_folder(folder_path=".", image_extensions=None, create_backup=False, 
                 print(f"⚠ Impossible de sauvegarder {os.path.basename(image_file)}: {e}")
         
         # Traiter l'image
-        if make_image_square(image_file, padding=padding, final_size=final_size):
+        if make_image_square(image_file, padding=padding, final_size=final_size, add_border=add_border):
             success_count += 1
     
     print("-" * 50)
@@ -204,6 +248,17 @@ def main():
     print("en images carrées de 256x256 pixels avec du padding FFFFDD sans déformation.")
     print("Un padding de couleur FFFFDD sera ajouté autour de chaque image avant redimensionnement.")
     print("Les fonds blancs existants seront également remplacés par FFFFDD.")
+    print("Une bordure anti-suppression sera ajoutée pour éviter les optimisations de Glide.")
+    print()
+    
+    # Demander si on veut ajouter la bordure anti-Glide
+    response = input("Ajouter une bordure anti-suppression Glide? (O/n): ").strip().lower()
+    add_border = response not in ['n', 'non', 'no']
+    
+    if add_border:
+        print("✓ Bordure anti-Glide activée")
+    else:
+        print("✗ Bordure anti-Glide désactivée")
     print()
     
     # Demander la taille du padding
@@ -239,7 +294,7 @@ def main():
     
     # Traiter le dossier courant
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    process_folder(current_dir, create_backup=create_backup, padding=padding, final_size=256)
+    process_folder(current_dir, create_backup=create_backup, padding=padding, final_size=256, add_border=add_border)
 
 if __name__ == "__main__":
     main()
