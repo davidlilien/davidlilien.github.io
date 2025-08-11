@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>AirPointer – Pointeur laser virtuel pour reviews VFX</title>
+    <meta
+      name="description"
+      content="Transformez votre smartphone en pointeur laser professionnel pour reviews d'effets spéciaux en équipe et remote"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ["Inter", "system-ui", "sans-serif"],
+            },
+          },
+        },
+      };
+    </script>
+  </head>
+  <body
+    class="min-h-full bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 text-slate-900 font-sans antialiased"
+  >
+    <div class="relative overflow-hidden">
+      <!-- Background Elements -->
+      <div class="absolute inset-0 pointer-events-none">
+        <div
+          class="absolute -top-40 -right-40 w-80 h-80 bg-sky-500/5 rounded-full blur-3xl"
+        ></div>
+        <div
+          class="absolute top-1/2 -left-40 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl"
+        ></div>
+      </div>
+
+      <div class="relative max-w-6xl mx-auto px-6 py-20 lg:py-32">
+        <div class="text-center">
+          <!-- Logo/Brand -->
+          <div class="inline-flex items-center gap-3 mb-8">
+            <div
+              class="h-12 w-12 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/25"
+            >
+              <i data-lucide="monitor-speaker" class="w-6 h-6 text-white"></i>
+            </div>
+            <span class="text-2xl font-semibold tracking-tight text-slate-900"
+              >AirPointer</span
+            >
+          </div>
+
+          <!-- Headline -->
+          <h1
+            class="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-slate-900 mb-6"
+          >
+            Votre smartphone
+            <span
+              class="bg-gradient-to-r from-blue-700 to-indigo-700 bg-clip-text text-transparent block"
+            >
+              devient un pointeur laser
+            </span>
+          </h1>
+
+          <!-- Subheadline -->
+          <p
+            class="text-lg lg:text-xl text-slate-600 max-w-2xl mx-auto mb-12 leading-relaxed"
+          >
+            Visible par tous en vidéoconférence.
+          </p>
+
+          <!-- CTA Buttons -->
+          <div
+            class="flex flex-col sm:flex-row gap-4 justify-center items-center"
+          >
+            <a
+              href="#download-windows"
+              class="px-8 py-4 bg-blue-700 hover:bg-blue-800 text-white font-medium rounded-xl shadow-lg shadow-blue-700/25 hover:shadow-blue-700/40 transition-all duration-200 transform hover:scale-105 inline-flex items-center gap-2"
+            >
+              <i data-lucide="monitor" class="w-4 h-4"></i>
+              Windows
+            </a>
+            <a
+              href="AirPointer.app"
+              class="px-8 py-4 bg-slate-700 hover:bg-slate-800 text-white font-medium rounded-xl shadow-lg shadow-slate-700/25 hover:shadow-slate-700/40 transition-all duration-200 transform hover:scale-105 inline-flex items-center gap-2"
+            >
+              <i data-lucide="laptop" class="w-4 h-4"></i>
+              macOS
+            </a>
+            <a
+              href="#download-linux"
+              class="px-8 py-4 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-xl shadow-lg shadow-orange-600/25 hover:shadow-orange-600/40 transition-all duration-200 transform hover:scale-105 inline-flex items-center gap-2"
+            >
+              <i data-lucide="terminal" class="w-4 h-4"></i>
+              Linux
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      lucide.createIcons();
+    </script>
+  </body>
+</html>
