@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Knob Control</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Oxygen, Ubuntu, Cantarell, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+
+      .knob-container {
+        position: relative;
+        width: 200px;
+        height: 200px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        user-select: none;
+        touch-action: none;
+      }
+
+      .knob {
+        position: relative;
+        width: 150px;
+        height: 150px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.1),
+          0 5px 20px rgba(0, 0, 0, 0.15);
+        cursor: grab;
+        transition: box-shadow 0.2s;
+      }
+
+      .knob:active {
+        cursor: grabbing;
+        box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.15),
+          0 3px 15px rgba(0, 0, 0, 0.2);
+      }
+
+      .knob-track {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+      }
+
+      .knob-progress {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        background: conic-gradient(
+          from -135deg,
+          transparent 0deg,
+          #667eea 0deg,
+          #764ba2 var(--progress-span),
+          transparent var(--progress-span)
+        );
+        mask: radial-gradient(circle, transparent 60%, black 60%);
+        -webkit-mask: radial-gradient(circle, transparent 60%, black 60%);
+      }
+
+      .knob-indicator {
+        position: absolute;
+        width: 4px;
+        height: 40%;
+        background: #667eea;
+        border-radius: 2px;
+        top: 50%;
+        left: 50%;
+        transform-origin: 50% 0%;
+        transform: translate(-50%, 0%) rotate(var(--rotation));
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      }
+
+      .knob-value {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        font-weight: 600;
+        color: #333;
+        pointer-events: all;
+        cursor: pointer;
+        padding: 10px;
+        border-radius: 6px;
+        transition: background 0.2s;
+        z-index: 10;
+      }
+
+      .knob-number {
+        font-size: 28px;
+        display: block;
+        margin-bottom: 2px;
+      }
+
+      .knob-unit {
+        font-size: 14px;
+        color: #666;
+      }
+
+      .knob-input {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 80px;
+        padding: 8px;
+        border: 2px solid #667eea;
+        border-radius: 6px;
+        text-align: center;
+        font-size: 24px;
+        font-weight: 600;
+        outline: none;
+        z-index: 20;
+      }
+
+      .knob-input:focus {
+        border-color: #764ba2;
+      }
+
+      .hidden {
+        display: none;
+      }
+
+      .info {
+        margin-top: 20px;
+        background: white;
+        padding: 15px 20px;
+        border-radius: 8px;
+        text-align: center;
+        font-size: 14px;
+        color: #666;
+        max-width: 400px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="knob-container">
+      <div class="knob">
+        <div class="knob-progress" style="--progress-span: 0deg"></div>
+        <div class="knob-indicator" style="--rotation: 45deg"></div>
+        <div class="knob-value" title="Cliquer pour éditer">
+          <span class="knob-number">0</span>
+          <span class="knob-unit"></span>
+        </div>
+        <input type="number" class="knob-input hidden" />
+      </div>
+    </div>
+
+    <script>
+      class Knob {
+        constructor(element, options = {}) {
+          this.element = element;
+          this.knob = element.querySelector(".knob");
+          this.indicator = element.querySelector(".knob-indicator");
+          this.progress = element.querySelector(".knob-progress");
+          this.numberDisplay = element.querySelector(".knob-number");
+          this.unitDisplay = element.querySelector(".knob-unit");
+          this.valueDisplay = element.querySelector(".knob-value");
+          this.input = element.querySelector(".knob-input");
+
+          // Options
+          this.min = options.min || 0;
+          this.max = options.max || 100;
+          this.value = options.value || 0;
+          this.step = options.step || 1;
+          this.unit = options.unit || "";
+
+          // Angles (en degrés)
+          this.minAngle = -135; // Bottom left
+          this.maxAngle = 135; // Bottom right
+          this.angleRange = 270; // 270 degrees rotation
+
+          // État
+          this.isDragging = false;
+          this.hasMoved = false; // Track if user has moved during drag
+          this.mode = null; // Will be detected: circular, vertical, horizontal
+          this.moveThreshold = 5; // Pixels before detecting mode
+          this.modeChangeThreshold = 15; // Pixels of consistent movement to change mode
+          this.lastMoveX = 0;
+          this.lastMoveY = 0;
+          this.startY = 0;
+          this.startX = 0;
+          this.startValue = 0;
+          this.lastAngle = 0; // Track last angle for smooth circular movement
+          this.lastValue = 0; // Track last value
+
+          this.init();
+        }
+
+        init() {
+          this.updateDisplay();
+          this.attachEvents();
+          this.unitDisplay.textContent = this.unit;
+        }
+
+        attachEvents() {
+          // Mouse events
+          this.knob.addEventListener("mousedown", this.onStart.bind(this));
+          document.addEventListener("mousemove", this.onMove.bind(this));
+          document.addEventListener("mouseup", this.onEnd.bind(this));
+
+          // Touch events
+          this.knob.addEventListener("touchstart", this.onStart.bind(this), {
+            passive: false,
+          });
+          document.addEventListener("touchmove", this.onMove.bind(this), {
+            passive: false,
+          });
+          document.addEventListener("touchend", this.onEnd.bind(this));
+
+          // Manual input - click on value display (only if no drag occurred)
+          this.valueDisplay.addEventListener("click", (e) => {
+            if (!this.hasMoved) {
+              e.stopPropagation();
+              e.preventDefault();
+              this.showInput();
+            }
+          });
+
+          // Touch support for manual input
+          let touchStartTime = 0;
+          let touchStartPos = { x: 0, y: 0 };
+
+          this.valueDisplay.addEventListener("touchstart", (e) => {
+            touchStartTime = Date.now();
+            const touch = e.touches[0];
+            touchStartPos = { x: touch.clientX, y: touch.clientY };
+          }, { passive: true });
+
+          this.valueDisplay.addEventListener("touchend", (e) => {
+            const touchDuration = Date.now() - touchStartTime;
+            const touch = e.changedTouches[0];
+            const touchEndPos = { x: touch.clientX, y: touch.clientY };
+            const distance = Math.sqrt(
+              Math.pow(touchEndPos.x - touchStartPos.x, 2) +
+              Math.pow(touchEndPos.y - touchStartPos.y, 2)
+            );
+
+            // If it's a short tap (< 300ms) and didn't move much (< 10px), open input
+            if (touchDuration < 300 && distance < 10 && !this.hasMoved) {
+              e.stopPropagation();
+              e.preventDefault();
+              this.showInput();
+            }
+          }, { passive: false });
+
+          this.input.addEventListener("blur", this.hideInput.bind(this));
+          this.input.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+              this.hideInput();
+            } else if (e.key === "Escape") {
+              this.input.value = this.value;
+              this.hideInput();
+            }
+          });
+        }
+
+        onStart(e) {
+          e.preventDefault();
+          this.isDragging = true;
+          this.hasMoved = false;
+          this.mode = null;
+
+          const point = e.touches ? e.touches[0] : e;
+          this.startY = point.clientY;
+          this.startX = point.clientX;
+          this.lastMoveX = point.clientX;
+          this.lastMoveY = point.clientY;
+          this.startValue = this.value;
+          this.lastValue = this.value;
+
+          // Initialize angle for potential circular mode
+          const rect = this.knob.getBoundingClientRect();
+          const centerX = rect.left + rect.width / 2;
+          const centerY = rect.top + rect.height / 2;
+          this.lastAngle = this.getAngleFromPoint(
+            point.clientX,
+            point.clientY,
+            centerX,
+            centerY
+          );
+        }
+
+        onMove(e) {
+          if (!this.isDragging) return;
+          e.preventDefault();
+
+          const point = e.touches ? e.touches[0] : e;
+
+          // Calculate movement delta from last position
+          const moveDeltaX = point.clientX - this.lastMoveX;
+          const moveDeltaY = point.clientY - this.lastMoveY;
+          const moveDistance = Math.sqrt(
+            moveDeltaX * moveDeltaX + moveDeltaY * moveDeltaY
+          );
+
+          // Only process if there's actual movement
+          if (moveDistance < 0.5) return;
+
+          // Calculate total distance from start
+          const totalDeltaX = point.clientX - this.startX;
+          const totalDeltaY = point.clientY - this.startY;
+          const totalDistance = Math.sqrt(
+            totalDeltaX * totalDeltaX + totalDeltaY * totalDeltaY
+          );
+
+          if (totalDistance >= this.moveThreshold) {
+            this.hasMoved = true;
+          }
+
+          // Detect or update mode based on recent movement pattern
+          this.detectModeFromMovement(
+            moveDeltaX,
+            moveDeltaY,
+            totalDistance,
+            point
+          );
+
+          let newValue = this.lastValue;
+
+          if (this.mode === "vertical") {
+            const delta = -moveDeltaY * 0.3;
+            newValue = this.lastValue + delta;
+          } else if (this.mode === "horizontal") {
+            const delta = moveDeltaX * 0.3;
+            newValue = this.lastValue + delta;
+          } else if (this.mode === "circular") {
+            const rect = this.knob.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            const currentAngle = this.getAngleFromPoint(
+              point.clientX,
+              point.clientY,
+              centerX,
+              centerY
+            );
+
+            // Calculate incremental angle change from last position
+            let angleDiff = currentAngle - this.lastAngle;
+
+            // Handle wrap-around for small continuous movements
+            if (angleDiff > 180) angleDiff -= 360;
+            if (angleDiff < -180) angleDiff += 360;
+
+            // Map angle difference to value change
+            const valueDiff =
+              (angleDiff / this.angleRange) * (this.max - this.min);
+            newValue = this.lastValue + valueDiff;
+
+            // Update last angle for next iteration
+            this.lastAngle = currentAngle;
+          }
+
+          this.setValue(newValue);
+          this.lastValue = this.value;
+          this.lastMoveX = point.clientX;
+          this.lastMoveY = point.clientY;
+        }
+
+        onEnd(e) {
+          if (!this.isDragging) return;
+          this.isDragging = false;
+        }
+
+        detectModeFromMovement(moveDeltaX, moveDeltaY, totalDistance, point) {
+          const absDeltaX = Math.abs(moveDeltaX);
+          const absDeltaY = Math.abs(moveDeltaY);
+
+          // Get knob center for circular detection
+          const rect = this.knob.getBoundingClientRect();
+          const centerX = rect.left + rect.width / 2;
+          const centerY = rect.top + rect.height / 2;
+
+          // Calculate if movement is tangential (circular) or radial
+          const currentX = point.clientX;
+          const currentY = point.clientY;
+          const radiusX = currentX - centerX;
+          const radiusY = currentY - centerY;
+          const radiusLength = Math.sqrt(radiusX * radiusX + radiusY * radiusY);
+
+          // Dead zone in center - if too close to center, don't use circular mode
+          const knobRadius = rect.width / 2;
+          const deadZoneRadius = knobRadius * 0.25; // 25% of knob radius
+
+          let isCircular = false;
+
+          if (radiusLength > deadZoneRadius) {
+            // Outside dead zone - can detect circular movement
+            // Dot product to see if movement is perpendicular to radius (tangential = circular)
+            const dotProduct = Math.abs(
+              radiusX * moveDeltaX + radiusY * moveDeltaY
+            );
+            const crossProduct = Math.abs(
+              radiusX * moveDeltaY - radiusY * moveDeltaX
+            );
+
+            const moveLength = Math.sqrt(
+              moveDeltaX * moveDeltaX + moveDeltaY * moveDeltaY
+            );
+
+            if (moveLength > 0.5) {
+              // If cross product is larger than dot product, movement is more tangential
+              isCircular = crossProduct > dotProduct * 1.5;
+            }
+          }
+
+          // Determine intended mode from movement pattern
+          let intendedMode = null;
+
+          if (isCircular && totalDistance > this.moveThreshold) {
+            intendedMode = "circular";
+          } else if (absDeltaY > absDeltaX * 2) {
+            // Strongly vertical
+            intendedMode = "vertical";
+          } else if (absDeltaX > absDeltaY * 2) {
+            // Strongly horizontal
+            intendedMode = "horizontal";
+          } else if (totalDistance > this.moveThreshold) {
+            // Ambiguous - default to current mode or circular
+            intendedMode = this.mode || "circular";
+          }
+
+          // Update mode (with hysteresis to prevent jitter)
+          if (!this.mode) {
+            // First time - set the mode
+            this.mode = intendedMode || "circular";
+          } else if (
+            intendedMode &&
+            intendedMode !== this.mode &&
+            totalDistance > this.modeChangeThreshold
+          ) {
+            // Allow mode change if movement pattern is clearly different
+            this.mode = intendedMode;
+
+            // Reset tracking for new mode
+            if (this.mode === "circular") {
+              this.lastAngle = this.getAngleFromPoint(
+                point.clientX,
+                point.clientY,
+                centerX,
+                centerY
+              );
+            }
+          }
+        }
+
+        getAngleFromPoint(x, y, centerX, centerY) {
+          const deltaX = x - centerX;
+          const deltaY = y - centerY;
+          // Use atan2 to get angle in CSS degrees
+          // atan2 returns angle where 0 is right, 90 is down
+          let angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
+          // Convert to our coordinate system where -135 is bottom-left, 0 is top, 135 is bottom-right
+          angle = angle - 90; // Now 0 is top (12 o'clock)
+          // Normalize to -180 to 180
+          if (angle > 180) angle -= 360;
+          if (angle <= -180) angle += 360;
+          return angle;
+        }
+
+        setValue(value) {
+          // Clamp value between min and max
+          value = Math.max(this.min, Math.min(this.max, value));
+
+          // Apply step
+          value = Math.round(value / this.step) * this.step;
+
+          this.value = value;
+          this.updateDisplay();
+        }
+
+        updateDisplay() {
+          // Update number display
+          this.numberDisplay.textContent = this.value.toFixed(0);
+
+          // Calculate rotation based on normalized value
+          const normalizedValue =
+            (this.value - this.min) / (this.max - this.min);
+          // Add 180 to flip the indicator to the correct orientation
+          const rotation =
+            this.minAngle + normalizedValue * this.angleRange + 180;
+
+          // Update indicator
+          this.indicator.style.setProperty("--rotation", `${rotation}deg`);
+
+          // Update progress arc to grow from minAngle to current rotation
+          // Convert angles to conic-gradient format (starts from minAngle)
+          const progressAngle = normalizedValue * this.angleRange;
+          this.progress.style.setProperty(
+            "--progress-span",
+            `${progressAngle}deg`
+          );
+        }
+
+        showInput() {
+          this.input.value = this.value;
+          this.valueDisplay.classList.add("hidden");
+          this.input.classList.remove("hidden");
+          this.input.focus();
+          this.input.select();
+        }
+
+        hideInput() {
+          const newValue = parseFloat(this.input.value);
+          if (!isNaN(newValue)) {
+            this.setValue(newValue);
+          }
+          this.input.classList.add("hidden");
+          this.valueDisplay.classList.remove("hidden");
+        }
+      }
+
+      // Initialize knob
+      const knobElement = document.querySelector(".knob-container");
+      const knob = new Knob(knobElement, {
+        min: 0,
+        max: 100,
+        value: 0,
+        step: 1,
+        unit: "",
+      });
+    </script>
+  </body>
+</html>
