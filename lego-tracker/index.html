@@ -41,9 +41,10 @@
         .color-dropdown-btn {
             display: inline-flex;
             align-items: center;
-            gap: 8px;
+            gap: 12px;
             cursor: pointer;
-            width: 180px;
+            width: 220px;
+            font-size: 16px;
         }
         .color-dropdown-btn span:not(.color-swatch) {
             flex: 1;
@@ -57,12 +58,12 @@
             top: 100%;
             left: 0;
             z-index: 50;
-            min-width: 180px;
-            max-height: 280px;
+            min-width: 220px;
+            max-height: 350px;
             overflow-y: auto;
             background: white;
             border: 1px solid #e5e7eb;
-            border-radius: 8px;
+            border-radius: 12px;
             box-shadow: 0 10px 25px rgba(0,0,0,0.15);
             display: none;
         }
@@ -72,10 +73,11 @@
         .color-dropdown-item {
             display: flex;
             align-items: center;
-            gap: 8px;
-            padding: 8px 12px;
+            gap: 12px;
+            padding: 14px 16px;
             cursor: pointer;
             transition: background 0.15s;
+            font-size: 16px;
         }
         .color-dropdown-item:hover {
             background: #f3f4f6;
@@ -84,8 +86,8 @@
             background: #fef3c7;
         }
         .color-swatch {
-            width: 18px;
-            height: 18px;
+            width: 24px;
+            height: 24px;
             border-radius: 50%;
             border: 2px solid rgba(255,255,255,0.5);
             box-shadow: 0 1px 2px rgba(0,0,0,0.1);
@@ -93,6 +95,14 @@
         }
         .color-swatch.white {
             border-color: #d1d5db;
+        }
+
+        /* Touch-friendly sizing for iPad */
+        @media (pointer: coarse) {
+            .touch-btn {
+                min-height: 48px;
+                min-width: 48px;
+            }
         }
     </style>
 </head>
@@ -134,32 +144,32 @@
                 <!-- Filtre couleur à gauche -->
                 <div class="color-dropdown" id="filterColorDropdown">
                     <button type="button" onclick="toggleFilterColorDropdown()"
-                        class="color-dropdown-btn px-4 py-2.5 border border-gray-300 bg-white rounded-lg hover:border-gray-400 transition" style="width: 260px;">
+                        class="color-dropdown-btn px-5 py-3.5 border border-gray-300 bg-white rounded-xl hover:border-gray-400 transition text-base" style="width: 280px;">
                         <span class="color-swatch" id="filterColorSwatch" style="background: transparent; border-color: #d1d5db;"></span>
                         <span id="filterColorLabel">Toutes les couleurs</span>
-                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                         </svg>
                     </button>
-                    <div class="color-dropdown-menu" id="filterColorMenu">
+                    <div class="color-dropdown-menu" id="filterColorMenu" style="min-width: 280px;">
                         <div class="color-dropdown-item selected" onclick="selectFilterColor('')">
                             <span class="color-swatch" style="background: transparent; border-color: #d1d5db;"></span>
-                            <span class="text-sm">Toutes les couleurs</span>
+                            <span>Toutes les couleurs</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- Masquer complètes + Stats à droite -->
-                <div class="flex items-center gap-4">
-                    <label class="flex items-center gap-2 cursor-pointer">
-                        <span class="text-sm text-gray-600">Afficher complètes</span>
+                <div class="flex items-center gap-5">
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <span class="text-base text-gray-600">Afficher complètes</span>
                         <div class="relative">
                             <input type="checkbox" id="showComplete" class="sr-only peer" checked>
-                            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-green-500 transition-colors"></div>
-                            <div class="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow peer-checked:translate-x-5 transition-transform"></div>
+                            <div class="w-14 h-8 bg-gray-200 rounded-full peer peer-checked:bg-green-500 transition-colors"></div>
+                            <div class="absolute left-1 top-1 w-6 h-6 bg-white rounded-full shadow peer-checked:translate-x-6 transition-transform"></div>
                         </div>
                     </label>
-                    <div class="bg-green-50 text-green-700 px-4 py-2 rounded-full font-medium text-sm">
+                    <div class="bg-green-50 text-green-700 px-5 py-3 rounded-full font-medium text-base">
                         <span id="statsTotal">0</span> pièces
                     </div>
                 </div>
@@ -176,33 +186,9 @@
                     <thead class="bg-gray-800 text-white">
                         <tr>
                             <th class="px-4 py-4 text-left font-semibold">Image</th>
-                            <th class="px-4 py-4 text-left font-semibold cursor-pointer hover:bg-gray-700 transition whitespace-nowrap" data-sort="part_number">
-                                <div class="flex items-center gap-2">
-                                    N°
-                                    <svg class="w-4 h-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/>
-                                    </svg>
-                                </div>
-                            </th>
-                            <th class="px-4 py-4 text-left font-semibold cursor-pointer hover:bg-gray-700 transition" data-sort="description">
-                                <div class="flex items-center gap-2">
-                                    Description
-                                    <svg class="w-4 h-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/>
-                                    </svg>
-                                </div>
-                            </th>
-                            <th class="px-4 py-4 text-left font-semibold cursor-pointer hover:bg-gray-700 transition" data-sort="color_name">
-                                <div class="flex items-center gap-2">
-                                    Couleur
-                                    <svg class="w-4 h-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/>
-                                    </svg>
-                                </div>
-                            </th>
-                            <th class="px-4 py-4 text-left font-semibold">
-                                Trouvées
-                            </th>
+                            <th class="px-4 py-4 text-left font-semibold">Pièce</th>
+                            <th class="px-4 py-4 text-left font-semibold">Couleur</th>
+                            <th class="px-4 py-4 text-left font-semibold">Trouvées</th>
                         </tr>
                     </thead>
                     <tbody id="partsTable" class="divide-y divide-gray-100">
@@ -317,7 +303,7 @@
                 oscillator.start(audioContext.currentTime);
                 oscillator.stop(audioContext.currentTime + 0.15);
             } else if (type === 'victory') {
-                // Petite mélodie pop de victoire (2-3 sec)
+                // Petite mélodie pop de victoire
                 const notes = [
                     { freq: 523.25, start: 0, duration: 0.15 },      // C5
                     { freq: 659.25, start: 0.15, duration: 0.15 },   // E5
@@ -339,40 +325,11 @@
 
                     const startTime = audioContext.currentTime + note.start;
                     gain.gain.setValueAtTime(0, startTime);
-                    gain.gain.linearRampToValueAtTime(0.25, startTime + 0.02);
+                    gain.gain.linearRampToValueAtTime(0.3, startTime + 0.02);
                     gain.gain.exponentialRampToValueAtTime(0.01, startTime + note.duration);
 
                     osc.start(startTime);
                     osc.stop(startTime + note.duration + 0.05);
-                });
-
-                // Ajouter une harmonie (accords)
-                const chords = [
-                    { freqs: [261.63, 329.63, 392], start: 0, duration: 0.4 },     // C major
-                    { freqs: [349.23, 440, 523.25], start: 0.45, duration: 0.4 },  // F major
-                    { freqs: [392, 493.88, 587.33], start: 0.9, duration: 0.7 },   // G major
-                    { freqs: [523.25, 659.25, 783.99], start: 1.6, duration: 0.8 }, // C major (finale)
-                ];
-
-                chords.forEach(chord => {
-                    chord.freqs.forEach(freq => {
-                        const osc = audioContext.createOscillator();
-                        const gain = audioContext.createGain();
-
-                        osc.type = 'triangle';
-                        osc.frequency.value = freq;
-
-                        osc.connect(gain);
-                        gain.connect(audioContext.destination);
-
-                        const startTime = audioContext.currentTime + chord.start;
-                        gain.gain.setValueAtTime(0, startTime);
-                        gain.gain.linearRampToValueAtTime(0.08, startTime + 0.03);
-                        gain.gain.exponentialRampToValueAtTime(0.01, startTime + chord.duration);
-
-                        osc.start(startTime);
-                        osc.stop(startTime + chord.duration + 0.05);
-                    });
                 });
             }
         }
@@ -722,47 +679,27 @@
                 const isComplete = found >= part.quantity;
 
                 return `
-                    <tr class="part-row hover:bg-gray-50 transition-colors ${isComplete ? 'bg-green-50/50' : ''} ${isModified && !isComplete ? 'bg-amber-50/50' : ''}" data-index="${index}">
-                        <td class="px-4 py-3">
+                    <tr class="part-row hover:bg-gray-50 transition-colors ${isComplete ? 'bg-green-50/50' : ''}" data-index="${index}">
+                        <td class="px-3 py-2">
                             ${imagePath ?
                                 `<div class="w-16 h-16 flex items-center justify-center bg-gray-50 rounded-lg border border-gray-200">
                                     <img src="${imagePath}" alt="${part.description}" style="max-width: 64px; max-height: 64px; width: auto; height: auto; transform: scale(0.8); transform-origin: center;">
                                 </div>` :
                                 '<div class="w-16 h-16 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center text-gray-400">-</div>'}
                         </td>
-                        <td class="px-4 py-3">
-                            <span class="font-mono font-semibold text-blue-600">${part.part_number}</span>
-                        </td>
-                        <td class="px-4 py-3 text-gray-700">${part.description}</td>
-                        <td class="px-4 py-3">
-                            <div class="inline-flex items-center gap-2">
-                                <div class="color-dropdown" data-index="${index}">
-                                    <button type="button" onclick="toggleColorDropdown(${index})"
-                                        class="color-dropdown-btn px-4 py-2.5 text-sm border ${isModified ? 'border-amber-400 bg-amber-50' : 'border-gray-200 bg-white'} rounded-lg hover:border-gray-400 transition">
-                                        <span class="color-swatch ${isWhite ? 'white' : ''} ${isTransparent ? 'opacity-70' : ''}" style="background: ${colorStyle}"></span>
-                                        <span>${part.color_name}</span>
-                                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                                        </svg>
-                                    </button>
-                                    <div class="color-dropdown-menu" id="dropdown-${index}">
-                                        ${availableColors.map(color => {
-                                            const cStyle = colorMap[color] || '#ccc';
-                                            const isTrans = color.toLowerCase().includes('trans');
-                                            const isW = color === 'White';
-                                            const isSelected = color === part.color_name;
-                                            return `
-                                                <div class="color-dropdown-item ${isSelected ? 'selected' : ''}" onclick="selectColor(${index}, '${color}')">
-                                                    <span class="color-swatch ${isW ? 'white' : ''} ${isTrans ? 'opacity-70' : ''}" style="background: ${cStyle}"></span>
-                                                    <span class="text-sm">${color}</span>
-                                                </div>
-                                            `;
-                                        }).join('')}
-                                    </div>
-                                </div>
+                        <td class="px-3 py-2">
+                            <div class="flex flex-col">
+                                <span class="text-gray-900 text-lg">${part.description}</span>
+                                <span class="font-mono text-sm text-gray-400">${part.part_number}</span>
                             </div>
                         </td>
-                        <td class="px-4 py-3">
+                        <td class="px-3 py-2">
+                            <div class="inline-flex items-center gap-3">
+                                <span class="color-swatch ${isWhite ? 'white' : ''} ${isTransparent ? 'opacity-70' : ''}" style="background: ${colorStyle}"></span>
+                                <span class="text-base text-gray-700">${part.color_name}</span>
+                            </div>
+                        </td>
+                        <td class="px-3 py-2">
                             ${renderFoundCounter(part, index)}
                         </td>
                     </tr>
@@ -780,21 +717,21 @@
             return `
                 <div class="inline-flex items-center">
                     <button onclick="decrementFound(${index})"
-                        class="w-10 h-10 flex items-center justify-center rounded-l-lg border ${found > 0 ? 'bg-white text-gray-600 border-gray-200 active:bg-gray-100' : 'bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed'} transition"
+                        class="w-14 h-14 flex items-center justify-center rounded-l-xl border-2 ${found > 0 ? 'bg-white text-gray-600 border-gray-200 active:bg-gray-100' : 'bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed'} transition"
                         ${found === 0 ? 'disabled' : ''}>
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <svg class="w-7 h-7" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                             <path stroke-linecap="round" d="M18 12H6"/>
                         </svg>
                     </button>
-                    <div class="h-10 w-20 flex items-center justify-center border-y ${isComplete ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'}">
-                        <span class="font-mono text-sm font-semibold tabular-nums ${isComplete ? 'text-green-600' : 'text-gray-700'}">
+                    <div class="h-14 w-24 flex items-center justify-center border-y-2 ${isComplete ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'}">
+                        <span class="font-mono text-base font-semibold tabular-nums ${isComplete ? 'text-green-600' : 'text-gray-700'}">
                             ${found}<span class="text-gray-400 font-normal"> / ${total}</span>
                         </span>
                     </div>
                     <button onclick="incrementFound(${index})"
-                        class="w-10 h-10 flex items-center justify-center rounded-r-lg border ${isComplete ? 'bg-green-500 text-white border-green-500' : 'bg-white text-gray-600 border-gray-200 active:bg-gray-100'} transition"
+                        class="w-14 h-14 flex items-center justify-center rounded-r-xl border-2 ${isComplete ? 'bg-green-500 text-white border-green-500' : 'bg-white text-gray-600 border-gray-200 active:bg-gray-100'} transition"
                         title="${isComplete ? 'Complet !' : 'Ajouter'}">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <svg class="w-7 h-7" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="${isComplete ? 'M5 13l4 4L19 7' : 'M12 6v12m6-6H6'}"/>
                         </svg>
                     </button>
@@ -912,23 +849,6 @@
             document.getElementById('globalProgress').style.width = `${percentage}%`;
             document.getElementById('globalPercentage').textContent = `${percentage}%`;
         }
-
-        // Tri
-        document.querySelectorAll('th[data-sort]').forEach(th => {
-            th.addEventListener('click', () => {
-                const column = th.dataset.sort;
-
-                if (sortColumn === column) {
-                    sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
-                } else {
-                    sortColumn = column;
-                    sortDirection = 'asc';
-                }
-
-                sortParts();
-                renderTable();
-            });
-        });
 
         // Modal
         function openModal(src) {
