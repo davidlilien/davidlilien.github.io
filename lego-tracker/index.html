@@ -272,10 +272,60 @@
 
         // Audio
         let audioContext = null;
+        let audioUnlocked = false;
+
+        // Débloquer l'audio sur iOS PWA
+        function unlockAudio() {
+            if (audioUnlocked) return;
+
+            try {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+
+                // Méthode 1: Buffer silencieux
+                const buffer = audioContext.createBuffer(1, 1, 22050);
+                const source = audioContext.createBufferSource();
+                source.buffer = buffer;
+                source.connect(audioContext.destination);
+                source.start(0);
+
+                // Méthode 2: Oscillateur silencieux
+                const osc = audioContext.createOscillator();
+                const gain = audioContext.createGain();
+                gain.gain.value = 0;
+                osc.connect(gain);
+                gain.connect(audioContext.destination);
+                osc.start(0);
+                osc.stop(audioContext.currentTime + 0.001);
+
+                if (audioContext.state === 'suspended') {
+                    audioContext.resume().then(() => {
+                        audioUnlocked = true;
+                        console.log('Audio unlocked (resumed)');
+                    });
+                } else {
+                    audioUnlocked = true;
+                    console.log('Audio unlocked');
+                }
+            } catch (e) {
+                console.log('Audio unlock failed:', e);
+            }
+        }
+
+        // Attacher le débloqueur à TOUS les événements d'interaction
+        ['touchstart', 'touchend', 'mousedown', 'click', 'keydown'].forEach(event => {
+            document.addEventListener(event, unlockAudio, { once: false, passive: true });
+        });
 
         function playSound(type) {
             if (!audioContext) {
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+
+            // Tenter de resume si suspendu
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
             }
 
             if (type === 'success') {
