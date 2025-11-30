@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>LEGO Parts Tracker</title>
+
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#16a34a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="LEGO Parts">
+    <link rel="apple-touch-icon" href="icons/icon.svg">
+    <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        lego: {
+                            red: '#d01012',
+                            yellow: '#f6d01a',
+                            blue: '#006cb7',
+                            green: '#00852b',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom color dropdown */
+        .color-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .color-dropdown-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            width: 180px;
+        }
+        .color-dropdown-btn span:not(.color-swatch) {
+            flex: 1;
+            text-align: left;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .color-dropdown-menu {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            z-index: 50;
+            min-width: 180px;
+            max-height: 280px;
+            overflow-y: auto;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            display: none;
+        }
+        .color-dropdown-menu.open {
+            display: block;
+        }
+        .color-dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .color-dropdown-item:hover {
+            background: #f3f4f6;
+        }
+        .color-dropdown-item.selected {
+            background: #fef3c7;
+        }
+        .color-swatch {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.5);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            flex-shrink: 0;
+        }
+        .color-swatch.white {
+            border-color: #d1d5db;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- Progress Bar (Global - sticky en haut) -->
+    <div class="sticky top-0 z-50 bg-white border-b shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 py-3">
+            <div class="flex items-center gap-4">
+                <!-- LEGO Minifig Head Avatar -->
+                <div class="flex-shrink-0">
+                    <svg width="36" height="36" viewBox="0 0 100 100" class="drop-shadow">
+                        <!-- Tête jaune -->
+                        <rect x="15" y="20" width="70" height="65" rx="8" fill="#F6D01A" stroke="#D4A900" stroke-width="2"/>
+                        <!-- Stud (bouton sur la tête) -->
+                        <ellipse cx="50" cy="20" rx="18" ry="6" fill="#F6D01A" stroke="#D4A900" stroke-width="2"/>
+                        <ellipse cx="50" cy="18" rx="14" ry="4" fill="#FFDF4A"/>
+                        <!-- Yeux -->
+                        <ellipse cx="35" cy="50" rx="6" ry="8" fill="#1B1B1B"/>
+                        <ellipse cx="65" cy="50" rx="6" ry="8" fill="#1B1B1B"/>
+                        <!-- Reflets yeux -->
+                        <ellipse cx="33" cy="47" rx="2" ry="3" fill="#FFFFFF"/>
+                        <ellipse cx="63" cy="47" rx="2" ry="3" fill="#FFFFFF"/>
+                        <!-- Sourire -->
+                        <path d="M 32 68 Q 50 82 68 68" fill="none" stroke="#1B1B1B" stroke-width="3" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <div class="flex-1 h-4 bg-gray-200 rounded-full overflow-hidden">
+                    <div id="globalProgress" class="h-full bg-gradient-to-r from-green-400 to-green-600 transition-all duration-500" style="width: 0%"></div>
+                </div>
+                <span id="globalPercentage" class="text-lg font-bold text-green-600 min-w-[4rem] text-right">0%</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="sticky top-[52px] z-40 bg-white shadow-md border-b">
+        <div class="max-w-7xl mx-auto px-4 py-4">
+            <div class="flex items-center justify-between w-full">
+                <!-- Filtre couleur à gauche -->
+                <div class="color-dropdown" id="filterColorDropdown">
+                    <button type="button" onclick="toggleFilterColorDropdown()"
+                        class="color-dropdown-btn px-4 py-2.5 border border-gray-300 bg-white rounded-lg hover:border-gray-400 transition" style="width: 260px;">
+                        <span class="color-swatch" id="filterColorSwatch" style="background: transparent; border-color: #d1d5db;"></span>
+                        <span id="filterColorLabel">Toutes les couleurs</span>
+                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </button>
+                    <div class="color-dropdown-menu" id="filterColorMenu">
+                        <div class="color-dropdown-item selected" onclick="selectFilterColor('')">
+                            <span class="color-swatch" style="background: transparent; border-color: #d1d5db;"></span>
+                            <span class="text-sm">Toutes les couleurs</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Masquer complètes + Stats à droite -->
+                <div class="flex items-center gap-4">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <span class="text-sm text-gray-600">Afficher complètes</span>
+                        <div class="relative">
+                            <input type="checkbox" id="showComplete" class="sr-only peer" checked>
+                            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-green-500 transition-colors"></div>
+                            <div class="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow peer-checked:translate-x-5 transition-transform"></div>
+                        </div>
+                    </label>
+                    <div class="bg-green-50 text-green-700 px-4 py-2 rounded-full font-medium text-sm">
+                        <span id="statsTotal">0</span> pièces
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 py-6">
+        <!-- Table -->
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-800 text-white">
+                        <tr>
+                            <th class="px-4 py-4 text-left font-semibold">Image</th>
+                            <th class="px-4 py-4 text-left font-semibold cursor-pointer hover:bg-gray-700 transition whitespace-nowrap" data-sort="part_number">
+                                <div class="flex items-center gap-2">
+                                    N°
+                                    <svg class="w-4 h-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/>
+                                    </svg>
+                                </div>
+                            </th>
+                            <th class="px-4 py-4 text-left font-semibold cursor-pointer hover:bg-gray-700 transition" data-sort="description">
+                                <div class="flex items-center gap-2">
+                                    Description
+                                    <svg class="w-4 h-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/>
+                                    </svg>
+                                </div>
+                            </th>
+                            <th class="px-4 py-4 text-left font-semibold cursor-pointer hover:bg-gray-700 transition" data-sort="color_name">
+                                <div class="flex items-center gap-2">
+                                    Couleur
+                                    <svg class="w-4 h-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/>
+                                    </svg>
+                                </div>
+                            </th>
+                            <th class="px-4 py-4 text-left font-semibold">
+                                Trouvées
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="partsTable" class="divide-y divide-gray-100">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- No Results -->
+        <div id="noResults" class="hidden bg-white rounded-xl shadow-lg p-12 text-center">
+            <svg class="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <h3 class="text-xl font-semibold text-gray-700 mb-2">Aucun résultat</h3>
+            <p class="text-gray-500">Essayez de modifier vos critères de recherche.</p>
+        </div>
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] transition-all duration-300 opacity-0 translate-y-4 pointer-events-none">
+        <div class="bg-gray-800 text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-4">
+            <img id="toastImage" src="" alt="" class="w-16 h-16 object-contain bg-white rounded-lg hidden">
+            <span id="toastMessage" class="text-base"></span>
+            <button id="toastUndo" onclick="undoLastChange()" class="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-base font-medium transition">
+                Annuler
+            </button>
+        </div>
+    </div>
+
+    <!-- Image Modal -->
+    <div id="imageModal" class="fixed inset-0 bg-black/80 z-[100] hidden items-center justify-center p-4">
+        <button onclick="closeModal()" class="absolute top-4 right-4 text-white hover:text-gray-300 transition">
+            <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+        </button>
+        <img id="modalImage" src="" alt="Zoom" class="max-w-full max-h-full rounded-lg shadow-2xl">
+    </div>
+
+    <script>
+        // Mapping des couleurs LEGO vers CSS
+        const colorMap = {
+            'Black': '#1b1b1b',
+            'Blue': '#0055bf',
+            'Red': '#c91a09',
+            'Yellow': '#f2cd37',
+            'White': '#ffffff',
+            'Light Gray': '#9ba19d',
+            'Dark Gray': '#6d6e5c',
+            'Brown': '#583927',
+            'Green': '#237841',
+            'Orange': '#fe8a18',
+            'Tan': '#e4cd9e',
+            'Dark Pink': '#c870a0',
+            'Magenta': '#b3006d',
+            'Trans Clear': '#fcfcfc',
+            'Trans Red': '#c91a09',
+            'Trans Blue': '#0055bf',
+            'Trans Yellow': '#f5cd2f',
+            'Trans Dark Blue': '#0020a0',
+            'Trans Bright Green': '#56e646',
+            'Trans Dark Pink': '#df6695',
+            'Trans Very Light Blue': '#c1dff0',
+            'Trans Neon Green': '#c0ff00',
+            'Trans Light Purple': '#96709f',
+            'Trans Orange': '#f08f1c'
+        };
+
+        // Liste complète des couleurs LEGO disponibles
+        const availableColors = Object.keys(colorMap).sort();
+
+        const STORAGE_KEY = 'lego_parts_modifications';
+        const STORAGE_KEY_FOUND = 'lego_parts_found';
+        let allParts = [];
+        let originalParts = []; // Données CSV originales
+        let filteredParts = [];
+        let sortColumn = null; // null = ordre original du PDF
+        let sortDirection = 'asc';
+        let modifications = {}; // { "partNumber_colorCode": "newColorName" }
+        let foundCounts = {}; // { "partNumber_colorCode": numberOfFound }
+
+        // Audio
+        let audioContext = null;
+
+        function playSound(type) {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+
+            if (type === 'success') {
+                // Son +1 : note montante satisfaisante
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                oscillator.frequency.setValueAtTime(400, audioContext.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(800, audioContext.currentTime + 0.1);
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.15);
+            } else if (type === 'undo') {
+                // Son -1/annuler : note descendante
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                oscillator.frequency.setValueAtTime(600, audioContext.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(300, audioContext.currentTime + 0.15);
+                gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.15);
+            } else if (type === 'victory') {
+                // Petite mélodie pop de victoire (2-3 sec)
+                const notes = [
+                    { freq: 523.25, start: 0, duration: 0.15 },      // C5
+                    { freq: 659.25, start: 0.15, duration: 0.15 },   // E5
+                    { freq: 783.99, start: 0.3, duration: 0.15 },    // G5
+                    { freq: 1046.50, start: 0.45, duration: 0.4 },   // C6 (tenue)
+                    { freq: 783.99, start: 0.9, duration: 0.1 },     // G5
+                    { freq: 1046.50, start: 1.0, duration: 0.6 },    // C6 (finale)
+                ];
+
+                notes.forEach(note => {
+                    const osc = audioContext.createOscillator();
+                    const gain = audioContext.createGain();
+
+                    osc.type = 'sine';
+                    osc.frequency.value = note.freq;
+
+                    osc.connect(gain);
+                    gain.connect(audioContext.destination);
+
+                    const startTime = audioContext.currentTime + note.start;
+                    gain.gain.setValueAtTime(0, startTime);
+                    gain.gain.linearRampToValueAtTime(0.25, startTime + 0.02);
+                    gain.gain.exponentialRampToValueAtTime(0.01, startTime + note.duration);
+
+                    osc.start(startTime);
+                    osc.stop(startTime + note.duration + 0.05);
+                });
+
+                // Ajouter une harmonie (accords)
+                const chords = [
+                    { freqs: [261.63, 329.63, 392], start: 0, duration: 0.4 },     // C major
+                    { freqs: [349.23, 440, 523.25], start: 0.45, duration: 0.4 },  // F major
+                    { freqs: [392, 493.88, 587.33], start: 0.9, duration: 0.7 },   // G major
+                    { freqs: [523.25, 659.25, 783.99], start: 1.6, duration: 0.8 }, // C major (finale)
+                ];
+
+                chords.forEach(chord => {
+                    chord.freqs.forEach(freq => {
+                        const osc = audioContext.createOscillator();
+                        const gain = audioContext.createGain();
+
+                        osc.type = 'triangle';
+                        osc.frequency.value = freq;
+
+                        osc.connect(gain);
+                        gain.connect(audioContext.destination);
+
+                        const startTime = audioContext.currentTime + chord.start;
+                        gain.gain.setValueAtTime(0, startTime);
+                        gain.gain.linearRampToValueAtTime(0.08, startTime + 0.03);
+                        gain.gain.exponentialRampToValueAtTime(0.01, startTime + chord.duration);
+
+                        osc.start(startTime);
+                        osc.stop(startTime + chord.duration + 0.05);
+                    });
+                });
+            }
+        }
+
+        // Toast notification
+        let toastTimeout = null;
+        let lastChange = null;
+
+        function showToast(message, undoData, imageSrc = null) {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            const toastImage = document.getElementById('toastImage');
+
+            // Annuler le timeout précédent
+            if (toastTimeout) {
+                clearTimeout(toastTimeout);
+            }
+
+            // Sauvegarder les données pour annulation
+            lastChange = undoData;
+
+            // Afficher le toast
+            toastMessage.textContent = message;
+
+            // Afficher l'image si fournie
+            if (imageSrc) {
+                toastImage.src = imageSrc;
+                toastImage.classList.remove('hidden');
+            } else {
+                toastImage.classList.add('hidden');
+            }
+
+            toast.classList.remove('opacity-0', 'translate-y-4', 'pointer-events-none');
+            toast.classList.add('opacity-100', 'translate-y-0', 'pointer-events-auto');
+
+            // Masquer après 4 secondes
+            toastTimeout = setTimeout(() => {
+                hideToast();
+            }, 4000);
+        }
+
+        function hideToast() {
+            const toast = document.getElementById('toast');
+            toast.classList.add('opacity-0', 'translate-y-4', 'pointer-events-none');
+            toast.classList.remove('opacity-100', 'translate-y-0', 'pointer-events-auto');
+            lastChange = null;
+        }
+
+        function undoLastChange() {
+            if (!lastChange) return;
+
+            // Son d'annulation
+            playSound('undo');
+
+            if (lastChange.type === 'color') {
+                // Annuler changement de couleur
+                const key = lastChange.key;
+                if (lastChange.previousValue === null) {
+                    delete modifications[key];
+                } else {
+                    modifications[key] = lastChange.previousValue;
+                }
+                saveModifications();
+                applyModifications();
+                applyFilters();
+            } else if (lastChange.type === 'count') {
+                // Annuler changement de compteur
+                const key = lastChange.key;
+                if (lastChange.previousValue === 0) {
+                    delete foundCounts[key];
+                } else {
+                    foundCounts[key] = lastChange.previousValue;
+                }
+                saveFoundCounts();
+                applyFilters();
+            }
+
+            hideToast();
+        }
+
+        // Charger les modifications depuis localStorage
+        function loadModifications() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    modifications = JSON.parse(saved);
+                }
+            } catch (e) {
+                console.error('Erreur chargement modifications:', e);
+                modifications = {};
+            }
+        }
+
+        // Sauvegarder les modifications dans localStorage
+        function saveModifications() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(modifications));
+            } catch (e) {
+                console.error('Erreur sauvegarde modifications:', e);
+            }
+        }
+
+        // Charger les compteurs de pièces trouvées
+        function loadFoundCounts() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY_FOUND);
+                if (saved) {
+                    foundCounts = JSON.parse(saved);
+                }
+            } catch (e) {
+                console.error('Erreur chargement compteurs:', e);
+                foundCounts = {};
+            }
+        }
+
+        // Sauvegarder les compteurs
+        function saveFoundCounts() {
+            try {
+                localStorage.setItem(STORAGE_KEY_FOUND, JSON.stringify(foundCounts));
+            } catch (e) {
+                console.error('Erreur sauvegarde compteurs:', e);
+            }
+        }
+
+        // Générer une clé unique pour une pièce
+        function getPartKey(part) {
+            return `${part.part_number}_${part.original_color_code || part.color_code}`;
+        }
+
+        // Appliquer les modifications aux données
+        function applyModifications() {
+            allParts = originalParts.map(part => {
+                const key = getPartKey(part);
+                if (modifications[key]) {
+                    return {
+                        ...part,
+                        color_name: modifications[key],
+                        original_color_name: part.color_name,
+                        original_color_code: part.color_code,
+                        isModified: true
+                    };
+                }
+                return { ...part, isModified: false };
+            });
+        }
+
+        // Charger les données CSV
+        async function loadData() {
+            try {
+                loadModifications();
+                loadFoundCounts();
+
+                const response = await fetch('output/lego_parts.csv');
+                const text = await response.text();
+                originalParts = parseCSV(text);
+
+                applyModifications();
+                populateFilters();
+                applyFilters();
+            } catch (error) {
+                console.error('Erreur chargement CSV:', error);
+                document.getElementById('partsTable').innerHTML =
+                    '<tr><td colspan="5" class="text-center py-8 text-gray-500">Erreur de chargement des données.</td></tr>';
+            }
+        }
+
+        // Parser CSV
+        function parseCSV(text) {
+            const lines = text.trim().split('\n');
+            const parts = [];
+
+            for (let i = 1; i < lines.length; i++) {
+                const values = parseCSVLine(lines[i]);
+                if (values.length >= 5) {
+                    parts.push({
+                        part_number: values[0],
+                        description: values[1],
+                        color_code: values[2],
+                        color_name: values[3],
+                        quantity: parseInt(values[4]) || 0,
+                        image_file: values[5] || ''
+                    });
+                }
+            }
+            return parts;
+        }
+
+        function parseCSVLine(line) {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+
+            for (let char of line) {
+                if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === ',' && !inQuotes) {
+                    result.push(current.trim());
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            result.push(current.trim());
+            return result;
+        }
+
+        // Peupler les filtres
+        let selectedFilterColor = '';
+
+        function populateFilters() {
+            const colors = [...new Set(allParts.map(p => p.color_name))].sort();
+            const menu = document.getElementById('filterColorMenu');
+
+            // Ajouter les couleurs au menu
+            colors.forEach(color => {
+                const colorStyle = colorMap[color] || '#ccc';
+                const isTransparent = color.toLowerCase().includes('trans');
+                const isWhite = color === 'White';
+
+                const item = document.createElement('div');
+                item.className = 'color-dropdown-item';
+                item.onclick = () => selectFilterColor(color);
+                item.innerHTML = `
+                    <span class="color-swatch ${isWhite ? 'white' : ''} ${isTransparent ? 'opacity-70' : ''}" style="background: ${colorStyle}"></span>
+                    <span class="text-sm">${color}</span>
+                `;
+                menu.appendChild(item);
+            });
+        }
+
+        function toggleFilterColorDropdown() {
+            const menu = document.getElementById('filterColorMenu');
+            const wasOpen = menu.classList.contains('open');
+
+            // Fermer tous les dropdowns
+            closeAllDropdowns();
+
+            if (!wasOpen) {
+                menu.classList.add('open');
+            }
+        }
+
+        function selectFilterColor(color) {
+            selectedFilterColor = color;
+
+            const swatch = document.getElementById('filterColorSwatch');
+            const label = document.getElementById('filterColorLabel');
+
+            if (color) {
+                const colorStyle = colorMap[color] || '#ccc';
+                const isTransparent = color.toLowerCase().includes('trans');
+                const isWhite = color === 'White';
+
+                swatch.style.background = colorStyle;
+                swatch.style.borderColor = isWhite ? '#d1d5db' : 'rgba(255,255,255,0.5)';
+                swatch.className = `color-swatch ${isWhite ? 'white' : ''} ${isTransparent ? 'opacity-70' : ''}`;
+                label.textContent = color;
+            } else {
+                swatch.style.background = 'transparent';
+                swatch.style.borderColor = '#d1d5db';
+                swatch.className = 'color-swatch';
+                label.textContent = 'Toutes les couleurs';
+            }
+
+            // Mettre à jour la sélection visuelle
+            document.querySelectorAll('#filterColorMenu .color-dropdown-item').forEach((item, index) => {
+                const itemColor = index === 0 ? '' : item.querySelector('.text-sm').textContent;
+                item.classList.toggle('selected', itemColor === color);
+            });
+
+            closeAllDropdowns();
+            applyFilters();
+        }
+
+        // Appliquer les filtres
+        function applyFilters() {
+            const showComplete = document.getElementById('showComplete').checked;
+
+            filteredParts = allParts.filter(part => {
+                const matchesColor = !selectedFilterColor || part.color_name === selectedFilterColor;
+
+                // Masquer les complètes si le switch est désactivé
+                let matchesStatus = true;
+                if (!showComplete) {
+                    const key = getPartKey(part);
+                    const found = foundCounts[key] || 0;
+                    const total = part.quantity;
+                    matchesStatus = found < total;
+                }
+
+                return matchesColor && matchesStatus;
+            });
+
+            sortParts();
+            renderTable();
+            updateStats();
+        }
+
+        // Trier
+        function sortParts() {
+            // Si pas de colonne de tri, garder l'ordre original
+            if (!sortColumn) return;
+
+            filteredParts.sort((a, b) => {
+                let valA = a[sortColumn];
+                let valB = b[sortColumn];
+
+                if (sortColumn === 'quantity') {
+                    valA = parseInt(valA) || 0;
+                    valB = parseInt(valB) || 0;
+                } else {
+                    valA = String(valA).toLowerCase();
+                    valB = String(valB).toLowerCase();
+                }
+
+                if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+                if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+        }
+
+        // Afficher le tableau
+        function renderTable() {
+            const tbody = document.getElementById('partsTable');
+            const noResults = document.getElementById('noResults');
+            const table = tbody.closest('table').parentElement.parentElement;
+
+            if (filteredParts.length === 0) {
+                tbody.innerHTML = '';
+                table.classList.add('hidden');
+                noResults.classList.remove('hidden');
+                return;
+            }
+
+            table.classList.remove('hidden');
+            noResults.classList.add('hidden');
+
+            tbody.innerHTML = filteredParts.map((part, index) => {
+                const colorStyle = colorMap[part.color_name] || '#ccc';
+                const imagePath = part.image_file ? `output/images/${part.image_file}` : '';
+                const isTransparent = part.color_name.toLowerCase().includes('trans');
+                const isWhite = part.color_name === 'White';
+                const isModified = part.isModified;
+
+                const key = getPartKey(part);
+                const found = foundCounts[key] || 0;
+                const isComplete = found >= part.quantity;
+
+                return `
+                    <tr class="part-row hover:bg-gray-50 transition-colors ${isComplete ? 'bg-green-50/50' : ''} ${isModified && !isComplete ? 'bg-amber-50/50' : ''}" data-index="${index}">
+                        <td class="px-4 py-3">
+                            ${imagePath ?
+                                `<div class="w-16 h-16 flex items-center justify-center bg-gray-50 rounded-lg border border-gray-200">
+                                    <img src="${imagePath}" alt="${part.description}" style="max-width: 64px; max-height: 64px; width: auto; height: auto; transform: scale(0.8); transform-origin: center;">
+                                </div>` :
+                                '<div class="w-16 h-16 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center text-gray-400">-</div>'}
+                        </td>
+                        <td class="px-4 py-3">
+                            <span class="font-mono font-semibold text-blue-600">${part.part_number}</span>
+                        </td>
+                        <td class="px-4 py-3 text-gray-700">${part.description}</td>
+                        <td class="px-4 py-3">
+                            <div class="inline-flex items-center gap-2">
+                                <div class="color-dropdown" data-index="${index}">
+                                    <button type="button" onclick="toggleColorDropdown(${index})"
+                                        class="color-dropdown-btn px-4 py-2.5 text-sm border ${isModified ? 'border-amber-400 bg-amber-50' : 'border-gray-200 bg-white'} rounded-lg hover:border-gray-400 transition">
+                                        <span class="color-swatch ${isWhite ? 'white' : ''} ${isTransparent ? 'opacity-70' : ''}" style="background: ${colorStyle}"></span>
+                                        <span>${part.color_name}</span>
+                                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                        </svg>
+                                    </button>
+                                    <div class="color-dropdown-menu" id="dropdown-${index}">
+                                        ${availableColors.map(color => {
+                                            const cStyle = colorMap[color] || '#ccc';
+                                            const isTrans = color.toLowerCase().includes('trans');
+                                            const isW = color === 'White';
+                                            const isSelected = color === part.color_name;
+                                            return `
+                                                <div class="color-dropdown-item ${isSelected ? 'selected' : ''}" onclick="selectColor(${index}, '${color}')">
+                                                    <span class="color-swatch ${isW ? 'white' : ''} ${isTrans ? 'opacity-70' : ''}" style="background: ${cStyle}"></span>
+                                                    <span class="text-sm">${color}</span>
+                                                </div>
+                                            `;
+                                        }).join('')}
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-4 py-3">
+                            ${renderFoundCounter(part, index)}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Render found counter pour une pièce
+        function renderFoundCounter(part, index) {
+            const key = getPartKey(part);
+            const found = foundCounts[key] || 0;
+            const total = part.quantity;
+            const isComplete = found >= total;
+
+            return `
+                <div class="inline-flex items-center">
+                    <button onclick="decrementFound(${index})"
+                        class="w-10 h-10 flex items-center justify-center rounded-l-lg border ${found > 0 ? 'bg-white text-gray-600 border-gray-200 active:bg-gray-100' : 'bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed'} transition"
+                        ${found === 0 ? 'disabled' : ''}>
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" d="M18 12H6"/>
+                        </svg>
+                    </button>
+                    <div class="h-10 w-20 flex items-center justify-center border-y ${isComplete ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'}">
+                        <span class="font-mono text-sm font-semibold tabular-nums ${isComplete ? 'text-green-600' : 'text-gray-700'}">
+                            ${found}<span class="text-gray-400 font-normal"> / ${total}</span>
+                        </span>
+                    </div>
+                    <button onclick="incrementFound(${index})"
+                        class="w-10 h-10 flex items-center justify-center rounded-r-lg border ${isComplete ? 'bg-green-500 text-white border-green-500' : 'bg-white text-gray-600 border-gray-200 active:bg-gray-100'} transition"
+                        title="${isComplete ? 'Complet !' : 'Ajouter'}">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="${isComplete ? 'M5 13l4 4L19 7' : 'M12 6v12m6-6H6'}"/>
+                        </svg>
+                    </button>
+                </div>
+            `;
+        }
+
+        // Incrémenter le compteur
+        function incrementFound(index) {
+            const part = filteredParts[index];
+            const key = getPartKey(part);
+            const current = foundCounts[key] || 0;
+
+            // Limiter au maximum
+            if (current >= part.quantity) {
+                return;
+            }
+
+            const newCount = current + 1;
+            const isNowComplete = newCount >= part.quantity;
+            const wasNotComplete = current < part.quantity;
+
+            foundCounts[key] = newCount;
+            saveFoundCounts();
+            updateFoundDisplay(index, part);
+            updateStats();
+
+            // Son de succès
+            playSound('success');
+
+            // Confettis + mélodie de victoire si la pièce vient d'être complétée
+            if (isNowComplete && wasNotComplete) {
+                playSound('victory');
+                confetti({
+                    particleCount: 100,
+                    spread: 70,
+                    origin: { y: 0.6 }
+                });
+            }
+
+            const imagePath = part.image_file ? `output/images/${part.image_file}` : null;
+            showToast('+1', {
+                type: 'count',
+                key: key,
+                previousValue: current
+            }, imagePath);
+        }
+
+        // Décrémenter le compteur
+        function decrementFound(index) {
+            const part = filteredParts[index];
+            const key = getPartKey(part);
+            const current = foundCounts[key] || 0;
+            if (current > 0) {
+                const previousValue = current;
+                foundCounts[key] = current - 1;
+                if (foundCounts[key] === 0) {
+                    delete foundCounts[key];
+                }
+                saveFoundCounts();
+                updateFoundDisplay(index, part);
+                updateStats();
+
+                // Son d'annulation
+                playSound('undo');
+
+                const imagePath = part.image_file ? `output/images/${part.image_file}` : null;
+                showToast('-1', {
+                    type: 'count',
+                    key: key,
+                    previousValue: previousValue
+                }, imagePath);
+            }
+        }
+
+        // Mettre à jour l'affichage d'une seule cellule (sans re-render tout le tableau)
+        function updateFoundDisplay(index, part) {
+            const row = document.querySelector(`tr[data-index="${index}"]`);
+            if (row) {
+                const foundCell = row.querySelector('td:last-child');
+                if (foundCell) {
+                    foundCell.innerHTML = renderFoundCounter(part, index);
+                }
+                // Mettre à jour le style de la ligne si complet
+                const key = getPartKey(part);
+                const found = foundCounts[key] || 0;
+                if (found >= part.quantity) {
+                    row.classList.add('bg-green-50/50');
+                } else {
+                    row.classList.remove('bg-green-50/50');
+                }
+            }
+        }
+
+        // Stats
+        function updateStats() {
+            // Calcul sur TOUTES les pièces pour la progression globale
+            const globalQuantity = allParts.reduce((sum, p) => sum + p.quantity, 0);
+            const globalFound = allParts.reduce((sum, p) => {
+                const key = getPartKey(p);
+                return sum + (foundCounts[key] || 0);
+            }, 0);
+
+            // Stats filtrées pour l'affichage actuel
+            const filteredQuantity = filteredParts.reduce((sum, p) => sum + p.quantity, 0);
+            const filteredFound = filteredParts.reduce((sum, p) => {
+                const key = getPartKey(p);
+                return sum + (foundCounts[key] || 0);
+            }, 0);
+
+            document.getElementById('statsTotal').textContent = `${filteredFound.toLocaleString()} / ${filteredQuantity.toLocaleString()}`;
+
+            // Progress bar globale
+            const percentage = globalQuantity > 0 ? Math.round((globalFound / globalQuantity) * 100) : 0;
+            document.getElementById('globalProgress').style.width = `${percentage}%`;
+            document.getElementById('globalPercentage').textContent = `${percentage}%`;
+        }
+
+        // Tri
+        document.querySelectorAll('th[data-sort]').forEach(th => {
+            th.addEventListener('click', () => {
+                const column = th.dataset.sort;
+
+                if (sortColumn === column) {
+                    sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+                } else {
+                    sortColumn = column;
+                    sortDirection = 'asc';
+                }
+
+                sortParts();
+                renderTable();
+            });
+        });
+
+        // Modal
+        function openModal(src) {
+            document.getElementById('modalImage').src = src;
+            document.getElementById('imageModal').classList.remove('hidden');
+            document.getElementById('imageModal').classList.add('flex');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal() {
+            document.getElementById('imageModal').classList.add('hidden');
+            document.getElementById('imageModal').classList.remove('flex');
+            document.body.style.overflow = '';
+        }
+
+        document.getElementById('imageModal').addEventListener('click', (e) => {
+            if (e.target.id === 'imageModal') closeModal();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeModal();
+        });
+
+        // === Color Dropdown ===
+        let openDropdownIndex = null;
+
+        function toggleColorDropdown(index) {
+            const dropdown = document.getElementById(`dropdown-${index}`);
+            const wasOpen = dropdown.classList.contains('open');
+
+            // Fermer tous les dropdowns
+            closeAllDropdowns();
+
+            // Ouvrir celui-ci s'il était fermé
+            if (!wasOpen) {
+                dropdown.classList.add('open');
+                openDropdownIndex = index;
+            }
+        }
+
+        function closeAllDropdowns() {
+            document.querySelectorAll('.color-dropdown-menu.open').forEach(el => {
+                el.classList.remove('open');
+            });
+            openDropdownIndex = null;
+        }
+
+        function selectColor(index, newColor) {
+            const part = filteredParts[index];
+            const key = getPartKey(part);
+            const previousColor = modifications[key] || null;
+            const oldColorName = part.color_name;
+
+            // Trouver la pièce originale
+            const originalPart = originalParts.find(p =>
+                p.part_number === part.part_number &&
+                p.color_code === (part.original_color_code || part.color_code)
+            );
+
+            if (newColor === originalPart?.color_name) {
+                // Retour à la couleur originale, supprimer la modification
+                delete modifications[key];
+            } else {
+                // Nouvelle modification
+                modifications[key] = newColor;
+            }
+
+            closeAllDropdowns();
+            saveModifications();
+            applyModifications();
+
+            // Afficher le toast seulement si la couleur a changé
+            if (newColor !== oldColorName) {
+                const imagePath = part.image_file ? `output/images/${part.image_file}` : null;
+                showToast('Changement de couleur', {
+                    type: 'color',
+                    key: key,
+                    previousValue: previousColor
+                }, imagePath);
+            }
+            applyFilters();
+        }
+
+        // Fermer le dropdown si on clique ailleurs
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.color-dropdown')) {
+                closeAllDropdowns();
+            }
+        });
+
+        // Events
+        document.getElementById('showComplete').addEventListener('change', applyFilters);
+
+        // Fermer le modal image avec Escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        });
+
+        // Init
+        loadData();
+
+        // Register Service Worker for PWA
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./sw.js')
+                .then(reg => console.log('Service Worker enregistré:', reg.scope))
+                .catch(err => console.log('Erreur Service Worker:', err));
+        }
+    </script>
+</body>
+</html>
