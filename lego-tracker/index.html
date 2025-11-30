@@ -191,21 +191,11 @@
     <!-- Main Content -->
     <main class="max-w-7xl mx-auto px-4 py-6">
         <!-- Table -->
-        <div class="bg-white rounded-xl shadow-lg overflow-hidden">
-            <div class="overflow-x-auto">
-                <table class="w-full">
-                    <thead class="bg-gray-800 text-white">
-                        <tr>
-                            <th class="px-4 py-4 text-left font-semibold">Image</th>
-                            <th class="px-4 py-4 text-left font-semibold">Pièce</th>
-                            <th class="px-4 py-4 text-left font-semibold">Couleur</th>
-                            <th class="px-4 py-4 text-left font-semibold">Trouvées</th>
-                        </tr>
-                    </thead>
-                    <tbody id="partsTable" class="divide-y divide-gray-100">
-                    </tbody>
-                </table>
-            </div>
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <tbody id="partsTable" class="divide-y divide-gray-200 [&>tr:nth-child(even)]:bg-gray-50">
+                </tbody>
+            </table>
         </div>
 
         <!-- No Results -->
