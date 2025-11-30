@@ -33,6 +33,17 @@
         }
     </script>
     <style>
+        /* Désactiver le double-tap zoom et scroll sur iOS */
+        button {
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Empêcher le scroll sur double-tap des boutons +/- */
+        .part-row button {
+            touch-action: none;
+        }
+
         /* Custom color dropdown */
         .color-dropdown {
             position: relative;
